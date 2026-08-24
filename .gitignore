@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Project data and artifacts
+data/
+runs/
+checkpoints/
+*.pth
+*.pt
+*.onnx
+
+# Editors / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
