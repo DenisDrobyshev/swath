@@ -12,9 +12,9 @@ venv/
 htmlcov/
 
 # Project data and artifacts
-data/
-runs/
-checkpoints/
+/data/
+/runs/
+/checkpoints/
 *.pth
 *.pt
 *.onnx

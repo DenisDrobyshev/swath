@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>swath — aerial image segmentation</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='7' fill='%23146b52'/><path d='M5 21l7-9 5 6 3-4 7 7z' fill='%23bfe8d4'/></svg>">
+</head>
+<body>
+<header class="bar">
+  <div class="brand">
+    <span class="mark" aria-hidden="true"></span>
+    <div>
+      <h1>swath</h1>
+      <p class="tagline">Semantic segmentation of aerial and satellite imagery</p>
+    </div>
+  </div>
+  <div class="status" id="status">connecting…</div>
+</header>
+
+<main>
+  <section class="panel controls">
+    <label class="field">
+      <span class="label">Model</span>
+      <select id="model"></select>
+    </label>
+    <p class="model-note" id="model-note"></p>
+
+    <label class="field">
+      <span class="label">Overlay opacity <output id="alpha-out">50%</output></span>
+      <input type="range" id="alpha" min="0" max="100" value="50">
+    </label>
+
+    <label class="field">
+      <span class="label">Tile size</span>
+      <select id="tile">
+        <option value="256">256 px</option>
+        <option value="512" selected>512 px</option>
+        <option value="768">768 px</option>
+        <option value="1024">1024 px</option>
+      </select>
+    </label>
+
+    <label class="checkbox">
+      <input type="checkbox" id="tta">
+      <span>Test-time augmentation <em>slower, a little sharper</em></span>
+    </label>
+
+    <button id="run" class="primary" disabled>Segment image</button>
+    <p class="hint" id="hint">Drop a GeoTIFF, PNG or JPEG on the canvas.</p>
+  </section>
+
+  <section class="panel viewer">
+    <div class="viewer-head">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-view="overlay" role="tab">Overlay</button>
+        <button class="tab" data-view="mask" role="tab">Mask</button>
+        <button class="tab" data-view="image" role="tab">Image</button>
+      </div>
+      <div class="timing" id="timing"></div>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="dropzone" id="dropzone">
+        <svg viewBox="0 0 48 48" width="44" height="44" aria-hidden="true">
+          <path d="M6 34l11-14 8 10 5-6 12 15z" fill="currentColor" opacity=".35"/>
+          <circle cx="33" cy="14" r="4" fill="currentColor" opacity=".55"/>
+          <rect x="3" y="7" width="42" height="34" rx="3" fill="none" stroke="currentColor" stroke-width="2"/>
+        </svg>
+        <p><strong>Drop an image here</strong> or <label class="link" for="file">choose a file</label></p>
+        <p class="small">GeoTIFF keeps its coordinates through to the output.</p>
+        <input type="file" id="file" accept=".tif,.tiff,.png,.jpg,.jpeg,.bmp,.webp" hidden>
+      </div>
+      <img id="canvas-image" alt="" hidden>
+      <div class="spinner" id="spinner" hidden><span></span>segmenting…</div>
+    </div>
+  </section>
+
+  <section class="panel results" id="results" hidden>
+    <h2>Coverage</h2>
+    <ul class="legend" id="legend"></ul>
+    <div class="geo" id="geo"></div>
+    <div class="downloads" id="downloads"></div>
+  </section>
+</main>
+
+<footer>
+  <a href="https://github.com/DenisDrobyshev/swath">source</a>
+  <span id="version"></span>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>
