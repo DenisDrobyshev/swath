@@ -137,3 +137,16 @@ def test_best_checkpoint_stays_weights_only(tmp_path: Path, samples, task):
     assert (tmp_path / "run" / "best.pt").stat().st_size < (
         tmp_path / "run" / "last.pt"
     ).stat().st_size
+
+
+def test_best_checkpoint_carries_the_epoch_it_was_saved_at(tmp_path: Path, samples, task):
+    """A checkpoint whose history stops one epoch short of its own is confusing."""
+    trainer = _trainer(tmp_path, samples, task, epochs=3)
+    trainer.fit()
+
+    _, best = load_checkpoint(tmp_path / "run" / "best.pt")
+    assert best.history, "the checkpoint should carry the run so far"
+    assert best.history[-1]["epoch"] == best.epoch
+
+    _, last = load_checkpoint(tmp_path / "run" / "last.pt")
+    assert last.history[-1]["epoch"] == last.epoch == 3

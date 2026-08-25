@@ -312,6 +312,7 @@ class Trainer:
             should_validate = val_loader is not None and (
                 (epoch + 1) % self.config.val_interval == 0 or epoch + 1 == self.config.epochs
             )
+            metrics = None
             if should_validate:
                 val_loss, metrics = self.evaluate(val_loader)
                 record.update(
@@ -324,29 +325,33 @@ class Trainer:
                     record[f"iou_{name}"] = round(value, 5)
                 print(f"  validation: {metrics.summary()}", flush=True)
 
-                if metrics.mean_iou > self.best_score:
-                    self.best_score = metrics.mean_iou
-                    save_checkpoint(
-                        self.output_dir / "best.pt",
-                        self.model,
-                        self.task,
-                        epoch=epoch + 1,
-                        metrics={
-                            "mean_iou": metrics.mean_iou,
-                            "mean_f1": metrics.mean_f1,
-                            "overall_accuracy": metrics.overall_accuracy,
-                        },
-                        history=self.history,
-                        notes=self.config.notes,
-                        best_score=metrics.mean_iou,
-                    )
-                    (self.output_dir / "metrics.txt").write_text(
-                        metrics.table() + "\n", encoding="utf-8"
-                    )
-                    print(f"  new best mIoU {metrics.mean_iou:.4f}, checkpoint saved", flush=True)
-
+            # The history is completed before anything is written, so a
+            # checkpoint carries the epoch it was saved at rather than stopping
+            # one short of it.
             self.history.append(record)
             self._write_history()
+
+            if metrics is not None and metrics.mean_iou > self.best_score:
+                self.best_score = metrics.mean_iou
+                save_checkpoint(
+                    self.output_dir / "best.pt",
+                    self.model,
+                    self.task,
+                    epoch=epoch + 1,
+                    metrics={
+                        "mean_iou": metrics.mean_iou,
+                        "mean_f1": metrics.mean_f1,
+                        "overall_accuracy": metrics.overall_accuracy,
+                    },
+                    history=self.history,
+                    notes=self.config.notes,
+                    best_score=metrics.mean_iou,
+                )
+                (self.output_dir / "metrics.txt").write_text(
+                    metrics.table() + "\n", encoding="utf-8"
+                )
+                print(f"  new best mIoU {metrics.mean_iou:.4f}, checkpoint saved", flush=True)
+
             save_checkpoint(
                 self.output_dir / "last.pt",
                 self.model,
