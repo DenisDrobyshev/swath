@@ -36,8 +36,7 @@ class MissingGeoSupport(RuntimeError):
 
     def __init__(self, operation: str) -> None:
         super().__init__(
-            f"{operation} needs rasterio; install the geo extra with "
-            f"pip install 'swath[geo]'"
+            f"{operation} needs rasterio; install the geo extra with pip install 'swath[geo]'"
         )
 
 

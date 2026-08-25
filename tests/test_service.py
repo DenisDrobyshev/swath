@@ -180,8 +180,7 @@ def test_mask_preview_keeps_palette_colours_exact(checkpoint: Path):
     colours = {tuple(colour) for colour in preview.reshape(-1, 3)}
     models = client.get("/api/models").json()["models"][0]
     allowed = {
-        tuple(int(entry["color"][i : i + 2], 16) for i in (1, 3, 5))
-        for entry in models["classes"]
+        tuple(int(entry["color"][i : i + 2], 16) for i in (1, 3, 5)) for entry in models["classes"]
     }
     assert colours <= allowed
 

@@ -53,7 +53,9 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--limit-val", type=int, default=0, help="cap validation tiles (debug)")
     train.add_argument("--no-amp", action="store_true", help="disable mixed precision")
     train.add_argument(
-        "--resume", type=Path, default=None,
+        "--resume",
+        type=Path,
+        default=None,
         help="continue from a checkpoint, restoring the optimiser and epoch counter",
     )
     train.add_argument("--notes", default="", help="free text stored in the checkpoint")
@@ -88,15 +90,21 @@ def build_parser() -> argparse.ArgumentParser:
     predict.add_argument("--overlay", action="store_true", help="also write a blended preview")
     predict.add_argument("--geojson", action="store_true", help="also vectorise the mask")
     predict.add_argument(
-        "--confidence", action="store_true",
+        "--confidence",
+        action="store_true",
         help="also write the winning probability per pixel, as a greyscale raster",
     )
     predict.set_defaults(handler=_predict)
 
     serve = subparsers.add_parser("serve", help="run the web service")
-    serve.add_argument("--checkpoint", type=Path, action="append", default=None,
-                       help="checkpoint or directory to expose; repeat for several models. "
-                            "Defaults to the SWATH_CHECKPOINTS environment variable.")
+    serve.add_argument(
+        "--checkpoint",
+        type=Path,
+        action="append",
+        default=None,
+        help="checkpoint or directory to expose; repeat for several models. "
+        "Defaults to the SWATH_CHECKPOINTS environment variable.",
+    )
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
     serve.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
@@ -251,18 +259,14 @@ def _predict(args: argparse.Namespace) -> int:
             scaled = (confidence * 255).round().clip(0, 255).astype("uint8")
             save_png(args.output / f"{stem}_confidence.png", scaled)
             if reference is not None:
-                write_mask_geotiff(
-                    args.output / f"{stem}_confidence.tif", scaled, reference, None
-                )
+                write_mask_geotiff(args.output / f"{stem}_confidence.tif", scaled, reference, None)
         if args.overlay:
             save_png(args.output / f"{stem}_overlay.png", overlay(image, mask, task.palette))
         if reference is not None:
             write_mask_geotiff(args.output / f"{stem}_mask.tif", mask, reference, task)
         if args.geojson:
             payload = mask_to_geojson(mask, reference, task)
-            (args.output / f"{stem}.geojson").write_text(
-                json.dumps(payload), encoding="utf-8"
-            )
+            (args.output / f"{stem}.geojson").write_text(json.dumps(payload), encoding="utf-8")
         areas = class_areas(mask, task, reference)
         top = sorted(areas, key=lambda row: row["share"], reverse=True)[:3]
         shares = ", ".join(f"{row['class']} {row['share']:.1%}" for row in top if row["share"])

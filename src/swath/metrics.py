@@ -26,11 +26,7 @@ class MetricResult:
     per_class_f1: dict[str, float]
 
     def summary(self) -> str:
-        return (
-            f"OA {self.overall_accuracy:.4f}  "
-            f"mIoU {self.mean_iou:.4f}  "
-            f"mF1 {self.mean_f1:.4f}"
-        )
+        return f"OA {self.overall_accuracy:.4f}  mIoU {self.mean_iou:.4f}  mF1 {self.mean_f1:.4f}"
 
     def table(self) -> str:
         width = max((len(name) for name in self.per_class_iou), default=5)
@@ -101,9 +97,7 @@ class ConfusionMatrix:
 
         names = list(class_names) if class_names else [str(i) for i in range(self.num_classes)]
         if len(names) != self.num_classes:
-            raise ValueError(
-                f"expected {self.num_classes} class names, got {len(names)}"
-            )
+            raise ValueError(f"expected {self.num_classes} class names, got {len(names)}")
 
         return MetricResult(
             overall_accuracy=overall_accuracy,

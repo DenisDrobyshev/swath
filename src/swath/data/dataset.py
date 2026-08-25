@@ -110,8 +110,7 @@ class SegmentationDataset(Dataset):
                 mask = self.label_map[mask]
             if mask.shape != image.shape[:2]:
                 raise ValueError(
-                    f"{sample.image.name}: image is {image.shape[:2]} but "
-                    f"the mask is {mask.shape}"
+                    f"{sample.image.name}: image is {image.shape[:2]} but the mask is {mask.shape}"
                 )
 
         if self.cache_size and len(self._cache) < self.cache_size:
@@ -152,9 +151,7 @@ def _fit_channels(image: np.ndarray, expected: int, path: Path) -> np.ndarray:
         return np.repeat(image, expected, axis=2)
     if channels > expected:
         return image[:, :, :expected]
-    raise ValueError(
-        f"{path.name}: image has {channels} bands but the task expects {expected}"
-    )
+    raise ValueError(f"{path.name}: image has {channels} bands but the task expects {expected}")
 
 
 def write_index(path: str | Path, samples: Iterable[Sample], root: Path | None = None) -> Path:

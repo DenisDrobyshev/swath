@@ -138,9 +138,7 @@ def predict_logits(
             if tile != requested_tile
             else ""
         )
-        raise ValueError(
-            f"overlap {overlap} must be smaller than the tile size {tile}{rounded}"
-        )
+        raise ValueError(f"overlap {overlap} must be smaller than the tile size {tile}{rounded}")
 
     height, width = image.shape[:2]
     pad_h = max(0, tile - height)
@@ -238,9 +236,7 @@ def predict_file(
     if image.shape[2] != task.in_channels:
         image = _fit_channels(image, task.in_channels)
     if return_confidence:
-        mask, confidence = predict_mask(
-            model, image, task, return_confidence=True, **kwargs
-        )
+        mask, confidence = predict_mask(model, image, task, return_confidence=True, **kwargs)
         return image, mask, confidence, reference
     mask = predict_mask(model, image, task, **kwargs)
     return image, mask, reference

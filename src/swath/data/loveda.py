@@ -97,8 +97,7 @@ def discover(root: str | Path, split: str, domains: tuple[str, ...] = DOMAINS) -
 
     if not samples:
         raise FileNotFoundError(
-            f"no LoveDA imagery under {root / split}; expected "
-            f"{split}/<domain>/images_png/*.png"
+            f"no LoveDA imagery under {root / split}; expected {split}/<domain>/images_png/*.png"
         )
     return samples
 
@@ -125,7 +124,6 @@ def prepare(raw_dir: str | Path, out_dir: str | Path, splits: tuple[str, ...] = 
         summary[split] = len(samples)
     if not summary:
         raise FileNotFoundError(
-            f"no LoveDA archives in {raw_dir}; download Train.zip and Val.zip from "
-            f"{ZENODO_RECORD}"
+            f"no LoveDA archives in {raw_dir}; download Train.zip and Val.zip from {ZENODO_RECORD}"
         )
     return summary

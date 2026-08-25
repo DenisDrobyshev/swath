@@ -70,12 +70,18 @@ def test_predict_end_to_end(tmp_path: Path, checkpoint: Path, tiles: Path, capsy
     code = main(
         [
             "predict",
-            "--checkpoint", str(checkpoint),
-            "--input", str(tiles / "images"),
-            "--output", str(output),
-            "--tile", "64",
-            "--overlap", "16",
-            "--device", "cpu",
+            "--checkpoint",
+            str(checkpoint),
+            "--input",
+            str(tiles / "images"),
+            "--output",
+            str(output),
+            "--tile",
+            "64",
+            "--overlap",
+            "16",
+            "--device",
+            "cpu",
             "--overlay",
         ]
     )
@@ -120,14 +126,24 @@ def test_environment_accepts_several_paths(monkeypatch, tmp_path: Path):
 
 def test_predict_writes_a_confidence_raster(tmp_path: Path, checkpoint: Path, tiles: Path, capsys):
     output = tmp_path / "out"
-    code = main([
-        "predict",
-        "--checkpoint", str(checkpoint),
-        "--input", str(tiles / "images" / "tile_00.png"),
-        "--output", str(output),
-        "--tile", "64", "--overlap", "16", "--device", "cpu",
-        "--confidence",
-    ])
+    code = main(
+        [
+            "predict",
+            "--checkpoint",
+            str(checkpoint),
+            "--input",
+            str(tiles / "images" / "tile_00.png"),
+            "--output",
+            str(output),
+            "--tile",
+            "64",
+            "--overlap",
+            "16",
+            "--device",
+            "cpu",
+            "--confidence",
+        ]
+    )
     assert code == 0
     assert (output / "tile_00_confidence.png").is_file()
     assert "mean confidence" in capsys.readouterr().out
@@ -140,14 +156,25 @@ def test_predict_writes_a_confidence_raster(tmp_path: Path, checkpoint: Path, ti
     assert confidence.max() <= 255
 
 
-def test_predict_reports_a_bad_overlap_cleanly(tmp_path: Path, checkpoint: Path, tiles: Path,
-                                               capsys):
-    code = main([
-        "predict",
-        "--checkpoint", str(checkpoint),
-        "--input", str(tiles / "images" / "tile_00.png"),
-        "--output", str(tmp_path / "out"),
-        "--tile", "64", "--overlap", "64", "--device", "cpu",
-    ])
+def test_predict_reports_a_bad_overlap_cleanly(
+    tmp_path: Path, checkpoint: Path, tiles: Path, capsys
+):
+    code = main(
+        [
+            "predict",
+            "--checkpoint",
+            str(checkpoint),
+            "--input",
+            str(tiles / "images" / "tile_00.png"),
+            "--output",
+            str(tmp_path / "out"),
+            "--tile",
+            "64",
+            "--overlap",
+            "64",
+            "--device",
+            "cpu",
+        ]
+    )
     assert code == 1
     assert "overlap 64 must be smaller" in capsys.readouterr().err

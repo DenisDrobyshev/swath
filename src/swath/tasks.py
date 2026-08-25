@@ -37,9 +37,7 @@ class Task:
                 f"{len(self.palette)} palette entries"
             )
         if len(self.mean) != self.in_channels or len(self.std) != self.in_channels:
-            raise ValueError(
-                f"task {self.name!r}: mean/std must have {self.in_channels} entries"
-            )
+            raise ValueError(f"task {self.name!r}: mean/std must have {self.in_channels} entries")
 
     @property
     def num_classes(self) -> int:

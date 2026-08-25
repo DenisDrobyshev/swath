@@ -367,9 +367,7 @@ def create_app(
         return Response(
             content=item["mask_png"],
             media_type="image/png",
-            headers={
-                "Content-Disposition": f'attachment; filename="{item["filename"]}_mask.png"'
-            },
+            headers={"Content-Disposition": f'attachment; filename="{item["filename"]}_mask.png"'},
         )
 
     @app.get("/api/result/{result_id}/mask.geojson")
@@ -380,11 +378,7 @@ def create_app(
         payload = mask_to_geojson(item["mask"], item["reference"], item["task"])
         return JSONResponse(
             payload,
-            headers={
-                "Content-Disposition": (
-                    f'attachment; filename="{item["filename"]}.geojson"'
-                )
-            },
+            headers={"Content-Disposition": (f'attachment; filename="{item["filename"]}.geojson"')},
         )
 
     @app.get("/api/result/{result_id}/mask.tif")

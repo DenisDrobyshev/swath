@@ -52,9 +52,7 @@ class Corpus:
     def samples(self, root: Path | str, split: str, domain: str = "both") -> list[Sample]:
         """Collect one split, optionally narrowed to a single domain."""
         if split not in self.splits:
-            raise ValueError(
-                f"{self.name} has no split {split!r}; expected one of {self.splits}"
-            )
+            raise ValueError(f"{self.name} has no split {split!r}; expected one of {self.splits}")
         if domain != "both" and self.domains and domain not in self.domains:
             raise ValueError(
                 f"{self.name} has no domain {domain!r}; expected one of {self.domains}"

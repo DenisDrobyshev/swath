@@ -171,9 +171,7 @@ def test_blending_suppresses_the_tile_border_artefact(two_class_task):
 def test_overlap_must_be_smaller_than_the_tile(two_class_task):
     image = np.zeros((64, 64, 3), dtype=np.uint8)
     with pytest.raises(ValueError, match=r"overlap 64 must be smaller than the tile size 64$"):
-        predict_mask(
-            ConstantModel(2, 0), image, two_class_task, tile=64, overlap=64, device="cpu"
-        )
+        predict_mask(ConstantModel(2, 0), image, two_class_task, tile=64, overlap=64, device="cpu")
 
 
 def test_tta_averages_without_changing_a_constant_prediction(two_class_task):
@@ -240,13 +238,9 @@ def test_host_accumulation_gives_the_same_answer(two_class_task):
     model = build_model(num_classes=2, base_channels=8, depth=2, blocks_per_stage=1).eval()
     image = (np.random.default_rng(1).random((128, 160, 3)) * 255).astype(np.uint8)
 
-    on_device = predict_logits(
-        model, image, two_class_task, tile=64, overlap=16, device="cuda"
-    )
+    on_device = predict_logits(model, image, two_class_task, tile=64, overlap=16, device="cuda")
     with patch("swath.predict.accumulator_device", return_value=torch.device("cpu")):
-        on_host = predict_logits(
-            model, image, two_class_task, tile=64, overlap=16, device="cuda"
-        )
+        on_host = predict_logits(model, image, two_class_task, tile=64, overlap=16, device="cuda")
 
     assert np.allclose(on_device, on_host, atol=1e-5)
     assert on_device.argmax(axis=0).tolist() == on_host.argmax(axis=0).tolist()

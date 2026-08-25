@@ -44,8 +44,14 @@ def test_evaluation_scores_a_perfect_model(samples, task):
 
 def test_report_records_how_it_was_produced(samples, task):
     report = evaluate(
-        PerfectModel(), samples[:2], task, tile=64, overlap=0, tta=True,
-        device="cpu", progress=False,
+        PerfectModel(),
+        samples[:2],
+        task,
+        tile=64,
+        overlap=0,
+        tta=True,
+        device="cpu",
+        progress=False,
     )
     payload = report.as_dict()
     assert payload["samples"] == 2
@@ -70,8 +76,14 @@ def test_label_map_is_applied_to_the_ground_truth(samples, task):
     # Remapping every raw label onto class 0 must make a perfect model look wrong.
     flatten = build_label_map({0: 0, 1: 0, 2: 0})
     report = evaluate(
-        PerfectModel(), samples[:2], task, label_map=flatten, tile=64, overlap=0,
-        device="cpu", progress=False,
+        PerfectModel(),
+        samples[:2],
+        task,
+        label_map=flatten,
+        tile=64,
+        overlap=0,
+        device="cpu",
+        progress=False,
     )
     assert report.metrics.overall_accuracy < 0.9
 

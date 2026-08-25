@@ -71,8 +71,10 @@ def samples(tiles: Path):
     from swath.data.dataset import Sample
 
     return [
-        Sample(image=tiles / "images" / f"tile_{index:02d}.png",
-               mask=tiles / "masks" / f"tile_{index:02d}.png")
+        Sample(
+            image=tiles / "images" / f"tile_{index:02d}.png",
+            mask=tiles / "masks" / f"tile_{index:02d}.png",
+        )
         for index in range(8)
     ]
 

@@ -35,7 +35,9 @@ jobs:
           pip install -e ".[geo,service,dev]"
 
       - name: Lint
-        run: ruff check .
+        run: |
+          ruff check .
+          ruff format --check .
 
       - name: Test
         run: pytest -q

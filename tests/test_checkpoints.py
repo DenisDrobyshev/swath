@@ -10,15 +10,17 @@ from swath.models import build_model
 
 
 def test_round_trip_preserves_weights_and_task(tmp_path: Path, tiny_model, task):
-    path = save_checkpoint(tmp_path / "model.pt", tiny_model, task, epoch=7,
-                           metrics={"mean_iou": 0.42})
+    path = save_checkpoint(
+        tmp_path / "model.pt", tiny_model, task, epoch=7, metrics={"mean_iou": 0.42}
+    )
     restored, meta = load_checkpoint(path)
 
     assert meta.task == task
     assert meta.epoch == 7
     assert meta.metrics["mean_iou"] == 0.42
-    for before, after in zip(tiny_model.state_dict().values(),
-                             restored.state_dict().values(), strict=True):
+    for before, after in zip(
+        tiny_model.state_dict().values(), restored.state_dict().values(), strict=True
+    ):
         assert torch.equal(before, after)
 
 
@@ -37,8 +39,15 @@ def test_restored_model_predicts_identically(tmp_path: Path, tiny_model, task):
 
 
 def test_model_config_reconstructs_the_architecture():
-    model = build_model(in_channels=5, num_classes=9, base_channels=16, depth=3,
-                        blocks_per_stage=2, norm="group", dropout=0.2)
+    model = build_model(
+        in_channels=5,
+        num_classes=9,
+        base_channels=16,
+        depth=3,
+        blocks_per_stage=2,
+        norm="group",
+        dropout=0.2,
+    )
     config = model_config(model)
     assert config == {
         "in_channels": 5,
