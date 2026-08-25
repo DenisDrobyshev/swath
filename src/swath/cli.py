@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from swath import __version__
+from swath.data.corpora import names as corpus_names
 from swath.tasks import TASKS, get_task
 
 
@@ -27,13 +28,14 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     prepare = subparsers.add_parser("prepare", help="unpack and index a dataset")
-    prepare.add_argument("dataset", choices=["loveda"], help="which corpus to prepare")
+    prepare.add_argument("dataset", choices=corpus_names(), help="which corpus to prepare")
     prepare.add_argument("--raw", type=Path, default=Path("data/raw"), help="downloaded archives")
     prepare.add_argument("--out", type=Path, default=Path("data/loveda"), help="unpack target")
     prepare.set_defaults(handler=_prepare)
 
     train = subparsers.add_parser("train", help="train a model")
-    train.add_argument("--task", default="landcover", help="task name from the registry")
+    train.add_argument("--dataset", default="loveda", choices=corpus_names())
+    train.add_argument("--task", default=None, help="task name; defaults to the corpus task")
     train.add_argument("--data", type=Path, default=Path("data/loveda"), help="prepared corpus")
     train.add_argument("--output", type=Path, default=Path("runs/landcover"))
     train.add_argument("--epochs", type=int, default=30)
@@ -61,9 +63,10 @@ def build_parser() -> argparse.ArgumentParser:
         "evaluate", help="score a checkpoint on a labelled split, at full resolution"
     )
     evaluate.add_argument("--checkpoint", type=Path, required=True)
+    evaluate.add_argument("--dataset", default="loveda", choices=corpus_names())
     evaluate.add_argument("--data", type=Path, default=Path("data/loveda"))
-    evaluate.add_argument("--split", default="Val", choices=["Train", "Val"])
-    evaluate.add_argument("--domain", default="both", choices=["both", "Rural", "Urban"])
+    evaluate.add_argument("--split", default="Val")
+    evaluate.add_argument("--domain", default="both")
     evaluate.add_argument("--tile", type=int, default=512)
     evaluate.add_argument("--overlap", type=int, default=128)
     evaluate.add_argument("--batch-size", type=int, default=4)
@@ -103,9 +106,14 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _prepare(args: argparse.Namespace) -> int:
-    from swath.data import loveda
+    from swath.data.corpora import get_corpus
 
-    summary = loveda.prepare(args.raw, args.out)
+    corpus = get_corpus(args.dataset)
+    if corpus.prepare is None:
+        print(f"{corpus.name} needs no preparation step", file=sys.stderr)
+        return 1
+
+    summary = corpus.prepare(args.raw, args.out)
     for split, count in summary.items():
         print(f"{split:6s} {count:5d} tiles")
     print(f"prepared under {args.out}")
@@ -113,20 +121,21 @@ def _prepare(args: argparse.Namespace) -> int:
 
 
 def _train(args: argparse.Namespace) -> int:
-    from swath.data import loveda
+    from swath.data.corpora import get_corpus
     from swath.data.dataset import SegmentationDataset
     from swath.data.transforms import build_eval_transform, build_train_transform
     from swath.train import TrainConfig, Trainer
 
-    task = get_task(args.task)
-    train_samples = loveda.discover(args.data, "Train")
-    val_samples = loveda.discover(args.data, "Val")
+    corpus = get_corpus(args.dataset)
+    task = get_task(args.task or corpus.default_task)
+    train_samples = corpus.samples(args.data, corpus.train_split)
+    val_samples = corpus.samples(args.data, corpus.val_split)
     if args.limit_train:
         train_samples = train_samples[: args.limit_train]
     if args.limit_val:
         val_samples = val_samples[: args.limit_val]
 
-    mapping = loveda.label_map()
+    mapping = corpus.labels()
     train_dataset = SegmentationDataset(
         train_samples, task, transform=build_train_transform(args.crop_size), label_map=mapping
     )
@@ -153,7 +162,7 @@ def _train(args: argparse.Namespace) -> int:
         amp=not args.no_amp,
         resume=args.resume,
         notes=args.notes,
-        extra={"dataset": "loveda", "data_dir": str(args.data)},
+        extra={"dataset": corpus.name, "data_dir": str(args.data)},
     )
     result = Trainer(task, train_dataset, val_dataset, config).fit()
     print(f"best mean IoU {result['best_mean_iou']:.4f}")
@@ -163,12 +172,12 @@ def _train(args: argparse.Namespace) -> int:
 
 def _evaluate(args: argparse.Namespace) -> int:
     from swath.checkpoints import load_checkpoint
-    from swath.data import loveda
+    from swath.data.corpora import get_corpus
     from swath.evaluate import evaluate, write_report
 
     model, meta = load_checkpoint(args.checkpoint, map_location="cpu")
-    domains = loveda.DOMAINS if args.domain == "both" else (args.domain,)
-    samples = loveda.discover(args.data, args.split, domains=domains)
+    corpus = get_corpus(args.dataset)
+    samples = corpus.samples(args.data, args.split, args.domain)
     if args.limit:
         samples = samples[: args.limit]
 
@@ -176,7 +185,7 @@ def _evaluate(args: argparse.Namespace) -> int:
         model,
         samples,
         meta.task,
-        label_map=loveda.label_map(),
+        label_map=corpus.labels(),
         tile=args.tile,
         overlap=args.overlap,
         batch_size=args.batch_size,
@@ -262,9 +271,20 @@ def _info(args: argparse.Namespace) -> int:
         print(describe(args.checkpoint))
         return 0
 
+    from swath.data.corpora import all_corpora
+
+    print("tasks")
     for task in sorted(TASKS, key=lambda item: item.name):
-        print(f"{task.name:12s} {task.num_classes} classes  {task.title}")
-        print(f"{'':12s} {task.description}")
+        print(f"  {task.name:12s} {task.num_classes} classes  {task.title}")
+        print(f"  {'':12s} {task.description}")
+
+    print()
+    print("datasets")
+    for corpus in all_corpora():
+        splits = ", ".join(corpus.splits)
+        print(f"  {corpus.name:12s} task {corpus.default_task}  splits {splits}")
+        if corpus.source:
+            print(f"  {'':12s} {corpus.source}")
     return 0
 
 

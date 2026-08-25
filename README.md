@@ -101,7 +101,22 @@ no-data and `1…7` for the classes; `swath.data.loveda` remaps them onto
 the loss and the metrics.
 
 Adding another corpus means writing one function that returns a list of
-`Sample(image, mask)` pairs. Nothing else changes.
+`Sample(image, mask)` pairs and registering it:
+
+```python
+from swath.data import Corpus, register
+
+register(Corpus(
+    name="inria",
+    title="Inria aerial image labeling",
+    default_task="buildings",
+    splits=("train", "test"),
+    discover=find_inria_tiles,      # (root, split) -> [Sample, ...]
+))
+```
+
+Every command then takes it: `swath train --dataset inria`,
+`swath evaluate --dataset inria`. `swath info` lists what is registered.
 
 ## Train
 

@@ -9,9 +9,17 @@ from swath.cli import _collect_inputs, build_parser, main
 
 def test_train_defaults_are_sane():
     args = build_parser().parse_args(["train"])
-    assert args.task == "landcover"
+    assert args.dataset == "loveda"
+    assert args.task is None, "the task should default to whatever the corpus declares"
     assert args.epochs == 30
     assert args.device == "auto"
+
+
+def test_info_lists_the_datasets_too(capsys):
+    assert main(["info"]) == 0
+    output = capsys.readouterr().out
+    assert "datasets" in output
+    assert "loveda" in output
 
 
 def test_predict_requires_a_checkpoint():

@@ -100,7 +100,22 @@ swath prepare loveda --raw data/raw --out data/loveda
 и из функции потерь, и из метрик.
 
 Чтобы добавить другой корпус, достаточно написать одну функцию, возвращающую
-список пар `Sample(image, mask)`. Больше не меняется ничего.
+список пар `Sample(image, mask)`, и зарегистрировать её:
+
+```python
+from swath.data import Corpus, register
+
+register(Corpus(
+    name="inria",
+    title="Inria aerial image labeling",
+    default_task="buildings",
+    splits=("train", "test"),
+    discover=find_inria_tiles,      # (root, split) -> [Sample, ...]
+))
+```
+
+Дальше корпус принимают все команды: `swath train --dataset inria`,
+`swath evaluate --dataset inria`. Что зарегистрировано, показывает `swath info`.
 
 ## Обучение
 
