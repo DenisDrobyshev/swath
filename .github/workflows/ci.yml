@@ -59,3 +59,76 @@ jobs:
 
       - name: Train, predict and serve on synthetic tiles
         run: python scripts/smoke_test.py
+
+  image:
+    name: docker image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Build
+        run: docker build -t swath:ci .
+
+      - name: Serve a checkpoint and segment through the API
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -e ".[geo,service,dev]"
+
+          # A tiny untrained checkpoint is enough: the point is that the image
+          # loads one, serves the page and answers the API, not that it is good.
+          mkdir -p models
+          python - <<'PY'
+          from swath.checkpoints import save_checkpoint
+          from swath.models import build_model
+          from swath.tasks import get_task
+
+          task = get_task("landcover")
+          model = build_model(
+              in_channels=task.in_channels, num_classes=task.num_classes,
+              base_channels=8, depth=2,
+          )
+          save_checkpoint("models/best.pt", model, task, notes="ci smoke")
+          PY
+
+          python -c "
+          from PIL import Image
+          import numpy as np
+          Image.fromarray((np.random.default_rng(0).random((128,128,3))*255).astype('uint8')).save('scene.png')
+          "
+
+          docker run -d --name swath -p 8000:8000 -v "$PWD/models:/models" swath:ci
+          for _ in $(seq 1 30); do
+            if curl -fs http://127.0.0.1:8000/api/health > health.json; then break; fi
+            sleep 2
+          done
+          python -c "
+          import json
+          health = json.load(open('health.json'))
+          print(health)
+          assert health['models'] == 1, health
+          assert health['geo_support'] is True, health
+          "
+
+          curl -fs -X POST -F "file=@scene.png" -F "tile=128" -F "overlap=32" \
+               http://127.0.0.1:8000/api/segment > result.json
+          python -c "
+          import json
+          payload = json.load(open('result.json'))
+          assert payload['width'] == 128, payload
+          assert payload['mask_png'].startswith('data:image/png;base64,')
+          assert abs(sum(row['share'] for row in payload['classes']) - 1) < 1e-4
+          print('segmented through the container:', payload['seconds'], 's')
+          "
+
+          curl -fs http://127.0.0.1:8000/ | grep -q "swath"
+
+      - name: Container logs
+        if: always()
+        run: docker logs swath || true
