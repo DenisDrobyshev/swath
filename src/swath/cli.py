@@ -34,10 +34,14 @@ def build_parser() -> argparse.ArgumentParser:
     prepare.set_defaults(handler=_prepare)
 
     train = subparsers.add_parser("train", help="train a model")
-    train.add_argument("--dataset", default="loveda", choices=corpus_names())
+    train.add_argument(
+        "--dataset", default="loveda", choices=corpus_names(), help="which corpus to train on"
+    )
     train.add_argument("--task", default=None, help="task name; defaults to the corpus task")
     train.add_argument("--data", type=Path, default=Path("data/loveda"), help="prepared corpus")
-    train.add_argument("--output", type=Path, default=Path("runs/landcover"))
+    train.add_argument(
+        "--output", type=Path, default=Path("runs/landcover"), help="where the run is written"
+    )
     train.add_argument("--epochs", type=int, default=30)
     train.add_argument("--batch-size", type=int, default=8)
     train.add_argument("--crop-size", type=int, default=512)
@@ -64,16 +68,16 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate = subparsers.add_parser(
         "evaluate", help="score a checkpoint on a labelled split, at full resolution"
     )
-    evaluate.add_argument("--checkpoint", type=Path, required=True)
+    evaluate.add_argument("--checkpoint", type=Path, required=True, help="model to score")
     evaluate.add_argument("--dataset", default="loveda", choices=corpus_names())
-    evaluate.add_argument("--data", type=Path, default=Path("data/loveda"))
-    evaluate.add_argument("--split", default="Val")
-    evaluate.add_argument("--domain", default="both")
+    evaluate.add_argument("--data", type=Path, default=Path("data/loveda"), help="prepared corpus")
+    evaluate.add_argument("--split", default="Val", help="which split to score")
+    evaluate.add_argument("--domain", default="both", help="restrict to one domain")
     evaluate.add_argument("--tile", type=int, default=512)
     evaluate.add_argument("--overlap", type=int, default=128)
     evaluate.add_argument("--batch-size", type=int, default=4)
     evaluate.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
-    evaluate.add_argument("--tta", action="store_true")
+    evaluate.add_argument("--tta", action="store_true", help="average over flips and rotations")
     evaluate.add_argument(
         "--sieve", type=int, default=0, help="drop predicted regions smaller than N pixels"
     )
@@ -82,13 +86,17 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.set_defaults(handler=_evaluate)
 
     predict = subparsers.add_parser("predict", help="segment a raster")
-    predict.add_argument("--checkpoint", type=Path, required=True)
+    predict.add_argument("--checkpoint", type=Path, required=True, help="trained model")
     predict.add_argument("--input", type=Path, required=True, help="image file or a directory")
-    predict.add_argument("--output", type=Path, default=Path("predictions"))
-    predict.add_argument("--tile", type=int, default=512)
-    predict.add_argument("--overlap", type=int, default=128)
-    predict.add_argument("--batch-size", type=int, default=4)
-    predict.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
+    predict.add_argument(
+        "--output", type=Path, default=Path("predictions"), help="where to write the results"
+    )
+    predict.add_argument("--tile", type=int, default=512, help="sliding window size")
+    predict.add_argument("--overlap", type=int, default=128, help="how far windows overlap")
+    predict.add_argument("--batch-size", type=int, default=4, help="windows per forward pass")
+    predict.add_argument(
+        "--device", default="auto", choices=["auto", "cuda", "cpu"], help="where to run"
+    )
     predict.add_argument("--tta", action="store_true", help="average over flips and rotations")
     predict.add_argument("--overlay", action="store_true", help="also write a blended preview")
     predict.add_argument("--geojson", action="store_true", help="also vectorise the mask")
@@ -116,8 +124,12 @@ def build_parser() -> argparse.ArgumentParser:
     serve.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
     serve.set_defaults(handler=_serve)
 
-    info = subparsers.add_parser("info", help="describe a checkpoint or list the tasks")
-    info.add_argument("--checkpoint", type=Path, default=None)
+    info = subparsers.add_parser(
+        "info", help="describe a checkpoint, or list the tasks and datasets"
+    )
+    info.add_argument(
+        "--checkpoint", type=Path, default=None, help="describe this checkpoint instead"
+    )
     info.set_defaults(handler=_info)
 
     return parser
