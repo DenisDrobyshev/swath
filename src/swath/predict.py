@@ -4,9 +4,10 @@ An aerial scene is routinely tens of thousands of pixels on a side, so inference
 runs as a sliding window. Cutting a raster into tiles and stitching the argmax
 back together leaves visible seams: a building split across two tiles is judged
 twice from two different contexts, and the join shows. The fix used here is to
-overlap the windows and blend their *logits* with a raised-cosine weight that
-falls to zero at the tile edge, so every pixel is dominated by the window that
-saw the most context around it.
+overlap the windows and blend their class *probabilities* — softmax is taken per
+window, before the sum, so a confident window outweighs an uncertain one — with a
+raised-cosine weight that falls to zero at the tile edge, so every pixel is
+dominated by the window that saw the most context around it.
 """
 
 from __future__ import annotations
@@ -28,6 +29,25 @@ def select_device(preference: str = "auto") -> torch.device:
     if preference == "auto":
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return torch.device(preference)
+
+
+def accumulator_device(
+    device: torch.device, num_classes: int, height: int, width: int, budget: float = 0.25
+) -> torch.device:
+    """Decide where to keep the blending accumulator.
+
+    The accumulator holds one float per class per pixel, which for a 64 megapixel
+    scene and seven classes is 1.8 GB — more than the model and its activations
+    have to spare on an 8 GB card. When it would take more than ``budget`` of the
+    device memory it goes to host memory instead: the extra transfer costs a
+    fraction of a second, and the alternative is running out of memory on exactly
+    the large rasters this predictor exists to handle.
+    """
+    if device.type != "cuda":
+        return device
+    required = num_classes * height * width * 4 + height * width * 4
+    total = torch.cuda.get_device_properties(device).total_memory
+    return device if required <= budget * total else torch.device("cpu")
 
 
 def window_positions(length: int, tile: int, stride: int) -> list[int]:
@@ -122,12 +142,14 @@ def predict_logits(
     columns = window_positions(padded_width, tile, stride)
 
     weights = blend_weights(tile, taper=max(1, overlap // 2))
-    weight_tensor = torch.from_numpy(weights).to(device)
+    weight_tensor = torch.from_numpy(weights)
 
+    store = accumulator_device(device, task.num_classes, padded_height, padded_width)
     accumulator = torch.zeros(
-        (task.num_classes, padded_height, padded_width), dtype=torch.float32, device=device
+        (task.num_classes, padded_height, padded_width), dtype=torch.float32, device=store
     )
-    normaliser = torch.zeros((padded_height, padded_width), dtype=torch.float32, device=device)
+    normaliser = torch.zeros((padded_height, padded_width), dtype=torch.float32, device=store)
+    weight_tensor = weight_tensor.to(store)
 
     windows = [(row, column) for row in rows for column in columns]
     iterator: Iterator[list[tuple[int, int]]] = _batched(windows, batch_size)
@@ -157,7 +179,7 @@ def predict_logits(
             else:
                 probabilities = model(tensor).float().softmax(dim=1)
 
-        probabilities = probabilities.float()
+        probabilities = probabilities.float().to(store)
         for index, (row, column) in enumerate(batch):
             accumulator[:, row : row + tile, column : column + tile] += (
                 probabilities[index] * weight_tensor

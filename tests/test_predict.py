@@ -5,7 +5,13 @@ import pytest
 import torch
 from torch import nn
 
-from swath.predict import blend_weights, predict_logits, predict_mask, window_positions
+from swath.predict import (
+    accumulator_device,
+    blend_weights,
+    predict_logits,
+    predict_mask,
+    window_positions,
+)
 from swath.tasks import Task
 
 
@@ -195,3 +201,50 @@ def test_confidence_is_returned_when_asked(two_class_task):
     )
     assert mask.shape == confidence.shape
     assert confidence.min() > 0.9
+
+
+def test_accumulator_stays_on_cpu_for_a_cpu_model():
+    cpu = torch.device("cpu")
+    assert accumulator_device(cpu, 7, 100_000, 100_000) == cpu
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs a CUDA device")
+def test_accumulator_moves_to_host_memory_when_it_would_not_fit():
+    cuda = torch.device("cuda")
+    total = torch.cuda.get_device_properties(cuda).total_memory
+
+    # A tile-sized accumulator belongs on the device.
+    assert accumulator_device(cuda, 7, 512, 512).type == "cuda"
+
+    # One sized at the whole device certainly does not.
+    side = int((total / (7 * 4)) ** 0.5)
+    assert accumulator_device(cuda, 7, side, side).type == "cpu"
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs a CUDA device")
+def test_host_accumulation_gives_the_same_answer(two_class_task):
+    """Where the sums are kept must not change what comes out of them.
+
+    The model runs on the GPU either way; only the accumulator moves. Softmax
+    outputs are computed identically, so the two paths must agree to float
+    precision — if they did not, the fallback would silently change results on
+    exactly the large rasters that trigger it.
+    """
+    from unittest.mock import patch
+
+    from swath.models import build_model
+
+    torch.manual_seed(0)
+    model = build_model(num_classes=2, base_channels=8, depth=2, blocks_per_stage=1).eval()
+    image = (np.random.default_rng(1).random((128, 160, 3)) * 255).astype(np.uint8)
+
+    on_device = predict_logits(
+        model, image, two_class_task, tile=64, overlap=16, device="cuda"
+    )
+    with patch("swath.predict.accumulator_device", return_value=torch.device("cpu")):
+        on_host = predict_logits(
+            model, image, two_class_task, tile=64, overlap=16, device="cuda"
+        )
+
+    assert np.allclose(on_device, on_host, atol=1e-5)
+    assert on_device.argmax(axis=0).tolist() == on_host.argmax(axis=0).tolist()
