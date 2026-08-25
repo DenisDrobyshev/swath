@@ -87,6 +87,10 @@ def build_parser() -> argparse.ArgumentParser:
     predict.add_argument("--tta", action="store_true", help="average over flips and rotations")
     predict.add_argument("--overlay", action="store_true", help="also write a blended preview")
     predict.add_argument("--geojson", action="store_true", help="also vectorise the mask")
+    predict.add_argument(
+        "--confidence", action="store_true",
+        help="also write the winning probability per pixel, as a greyscale raster",
+    )
     predict.set_defaults(handler=_predict)
 
     serve = subparsers.add_parser("serve", help="run the web service")
@@ -216,19 +220,40 @@ def _predict(args: argparse.Namespace) -> int:
 
     args.output.mkdir(parents=True, exist_ok=True)
     for path in inputs:
-        image, mask, reference = predict_file(
-            model,
-            path,
-            task,
-            tile=args.tile,
-            overlap=args.overlap,
-            batch_size=args.batch_size,
-            device=args.device,
-            tta=args.tta,
-            progress=True,
-        )
+        try:
+            result = predict_file(
+                model,
+                path,
+                task,
+                return_confidence=args.confidence,
+                tile=args.tile,
+                overlap=args.overlap,
+                batch_size=args.batch_size,
+                device=args.device,
+                tta=args.tta,
+                progress=True,
+            )
+        except ValueError as error:
+            print(f"{path.name}: {error}", file=sys.stderr)
+            return 1
+
+        confidence = None
+        if args.confidence:
+            image, mask, confidence, reference = result
+        else:
+            image, mask, reference = result
+
         stem = path.stem
         save_png(args.output / f"{stem}_mask.png", mask)
+        if confidence is not None:
+            # Scaled to bytes: a confidence raster is for looking at and for
+            # thresholding, and eight bits is finer than either needs.
+            scaled = (confidence * 255).round().clip(0, 255).astype("uint8")
+            save_png(args.output / f"{stem}_confidence.png", scaled)
+            if reference is not None:
+                write_mask_geotiff(
+                    args.output / f"{stem}_confidence.tif", scaled, reference, None
+                )
         if args.overlay:
             save_png(args.output / f"{stem}_overlay.png", overlay(image, mask, task.palette))
         if reference is not None:
@@ -241,6 +266,8 @@ def _predict(args: argparse.Namespace) -> int:
         areas = class_areas(mask, task, reference)
         top = sorted(areas, key=lambda row: row["share"], reverse=True)[:3]
         shares = ", ".join(f"{row['class']} {row['share']:.1%}" for row in top if row["share"])
+        if confidence is not None:
+            shares += f" | mean confidence {float(confidence.mean()):.3f}"
         print(f"{path.name}: {shares}")
 
     print(f"written to {args.output}")

@@ -223,18 +223,25 @@ def predict_file(
     model: UNet,
     path: str | Path,
     task: Task,
+    *,
+    return_confidence: bool = False,
     **kwargs: Any,
-) -> tuple[np.ndarray, np.ndarray, Any]:
+) -> tuple[np.ndarray, np.ndarray, Any] | tuple[np.ndarray, np.ndarray, np.ndarray, Any]:
     """Predict for a raster on disk.
 
-    Returns the image as read, the predicted label map, and the georeferencing
-    when the file carried any.
+    Returns the image as read, the predicted label map, optionally the winning
+    probability per pixel, and the georeferencing when the file carried any.
     """
     from swath.geo import read_georeferenced
 
     image, reference = read_georeferenced(path)
     if image.shape[2] != task.in_channels:
         image = _fit_channels(image, task.in_channels)
+    if return_confidence:
+        mask, confidence = predict_mask(
+            model, image, task, return_confidence=True, **kwargs
+        )
+        return image, mask, confidence, reference
     mask = predict_mask(model, image, task, **kwargs)
     return image, mask, reference
 

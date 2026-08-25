@@ -156,7 +156,9 @@ swath predict --checkpoint runs/landcover/best.pt \
 
 Writes `scene_mask.png`, and, when the input is georeferenced, `scene_mask.tif`
 in the same CRS. `--overlay` adds a blended preview, `--geojson` vectorises the
-mask into WGS84 polygons with per-feature areas. `--input` also accepts a
+mask into WGS84 polygons with per-feature areas, and `--confidence` writes the
+winning probability per pixel as a greyscale raster — the quickest way to see
+where a model is guessing rather than deciding. `--input` also accepts a
 directory.
 
 ## Serve
