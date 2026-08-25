@@ -118,17 +118,29 @@ def predict_logits(
 
     Returns a ``(num_classes, H, W)`` float32 array of softmax probabilities.
     """
-    if overlap >= tile:
-        raise ValueError("overlap must be smaller than the tile size")
     if image.ndim != 3:
         raise ValueError(f"expected an (H, W, C) image, got shape {image.shape}")
 
     device = select_device(device) if isinstance(device, str) else device
     model = model.to(device).eval()
 
+    # Skip connections only line up when the tile is a multiple of the divisor,
+    # so a requested size is rounded down. The overlap is checked afterwards:
+    # rounding 100 down to 96 can leave an overlap that no longer fits inside it,
+    # and a non-positive stride loops forever.
     divisor = model.size_divisor
+    requested_tile = tile
     if tile % divisor:
         tile = max(divisor, (tile // divisor) * divisor)
+    if overlap >= tile:
+        rounded = (
+            f", rounded down from {requested_tile} to a multiple of {divisor}"
+            if tile != requested_tile
+            else ""
+        )
+        raise ValueError(
+            f"overlap {overlap} must be smaller than the tile size {tile}{rounded}"
+        )
 
     height, width = image.shape[:2]
     pad_h = max(0, tile - height)

@@ -170,8 +170,10 @@ def test_blending_suppresses_the_tile_border_artefact(two_class_task):
 
 def test_overlap_must_be_smaller_than_the_tile(two_class_task):
     image = np.zeros((64, 64, 3), dtype=np.uint8)
-    with pytest.raises(ValueError, match="overlap"):
-        predict_mask(ConstantModel(2, 0), image, two_class_task, tile=64, overlap=64, device="cpu")
+    with pytest.raises(ValueError, match=r"overlap 64 must be smaller than the tile size 64$"):
+        predict_mask(
+            ConstantModel(2, 0), image, two_class_task, tile=64, overlap=64, device="cpu"
+        )
 
 
 def test_tta_averages_without_changing_a_constant_prediction(two_class_task):
@@ -248,3 +250,30 @@ def test_host_accumulation_gives_the_same_answer(two_class_task):
 
     assert np.allclose(on_device, on_host, atol=1e-5)
     assert on_device.argmax(axis=0).tolist() == on_host.argmax(axis=0).tolist()
+
+
+def test_tile_is_rounded_to_the_model_stride(two_class_task):
+    class Depth3Model(ConstantModel):
+        size_divisor = 8
+
+    image = np.zeros((128, 128, 3), dtype=np.uint8)
+    # 100 is not a multiple of 8; it becomes 96, and the run must still cover
+    # the image rather than tripping over a stride that no longer fits.
+    mask = predict_mask(
+        Depth3Model(2, winner=1), image, two_class_task, tile=100, overlap=16, device="cpu"
+    )
+    assert mask.shape == (128, 128)
+    assert (mask == 1).all()
+
+
+def test_overlap_is_checked_against_the_rounded_tile(two_class_task):
+    class Depth3Model(ConstantModel):
+        size_divisor = 8
+
+    image = np.zeros((128, 128, 3), dtype=np.uint8)
+    # 98 rounds down to 96, so an overlap of 97 stops fitting and would otherwise
+    # produce a non-positive stride.
+    with pytest.raises(ValueError, match="rounded down from 98 to a multiple of 8"):
+        predict_mask(
+            Depth3Model(2, winner=1), image, two_class_task, tile=98, overlap=97, device="cpu"
+        )

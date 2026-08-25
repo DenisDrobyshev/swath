@@ -79,3 +79,8 @@ def test_pixel_counts_ignore_out_of_range_labels():
     mask = np.array([[0, 1], [1, 255]], dtype=np.uint8)
     counts = class_pixel_counts(mask, num_classes=2)
     assert counts.tolist() == [1, 2]
+
+
+def test_missing_file_says_so(tmp_path: Path):
+    with pytest.raises(FileNotFoundError, match="does not exist"):
+        read_image(tmp_path / "absent.tif")

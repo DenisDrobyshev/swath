@@ -53,6 +53,10 @@ def read_mask(path: str | Path) -> np.ndarray:
 
 
 def _read_any(path: Path) -> np.ndarray:
+    if not path.is_file():
+        # Otherwise the caller gets whichever error the second reader raises,
+        # which talks about drivers rather than about a missing file.
+        raise FileNotFoundError(f"{path} does not exist")
     try:
         with Image.open(path) as handle:
             return np.asarray(handle)
