@@ -29,10 +29,10 @@ swath serve --checkpoint runs/landcover/best.pt
 | | |
 |---|---|
 | **Model** | A residual U-Net in one readable file of plain PyTorch. No pretrained backbone, no segmentation library, any number of input bands. |
-| **Training** | AdamW, cosine schedule with warm-up, mixed precision, class-weighted cross-entropy plus soft Dice, per-epoch confusion matrix, best-checkpoint selection on mean IoU. |
-| **Inference** | Sliding window with raised-cosine blending, so a raster of any size comes out without tile seams. Optional test-time augmentation over flips and quarter turns. |
+| **Training** | AdamW, cosine schedule with warm-up, mixed precision, class-weighted cross-entropy plus soft Dice, a confusion matrix over the whole validation split, best-checkpoint selection on mean IoU, and resume. |
+| **Inference** | Sliding window with raised-cosine blending, so tile boundaries do not print onto the output. Optional test-time augmentation, a confidence surface, and a sieve for speckle. |
 | **Georeferencing** | A GeoTIFF in, a GeoTIFF out — same CRS, same transform — plus WGS84 polygons and per-class coverage in square metres. |
-| **Service** | A FastAPI application with a single-page front end: drag an image in, get an overlay, a legend with coverage, and download links for the mask, the GeoTIFF and the GeoJSON. |
+| **Service** | A FastAPI application with a single-page front end: drag an image in, get an overlay, a confidence view, a legend with coverage, and download links for the mask, the GeoTIFF and the GeoJSON. |
 | **Checkpoints** | Self-describing. Weights, architecture arguments, class names and palette travel together, so loading one needs nothing but the file. |
 
 ## Why it is built this way
@@ -53,10 +53,10 @@ The effect is measured in `tests/test_predict.py`: on a model built to be wrong
 within eight pixels of its tile border, naive tiling leaves 44% of the interior
 wrong, and blending brings that to 0.3%.
 
-**Metrics come from one confusion matrix per epoch.** Averaging per-batch IoU is
-the common shortcut, and it silently scores classes that were not in the batch.
-On land cover, where roads are a few percent of the pixels and agriculture is
-half of them, that difference is not cosmetic.
+**Metrics come from one confusion matrix over the whole split.** Averaging
+per-batch IoU is the common shortcut, and it silently scores classes that were
+not in the batch. On LoveDA that is not cosmetic: roads are 1.9% of the pixels
+and agriculture is 34%, so the rare classes are missing from batch after batch.
 
 **Validation during training runs on crops; reported numbers do not.** Crops are
 cheap enough to run every other epoch, which is what checkpoint selection needs.
@@ -99,6 +99,13 @@ That unpacks 2522 training and 1669 validation tiles. The raw masks use `0` for
 no-data and `1…7` for the classes; `swath.data.loveda` remaps them onto
 `0…6` and sends no-data to the ignore label, which is then excluded from both
 the loss and the metrics.
+
+The classes are badly balanced, which is what the weighted loss is there for —
+measured over 400 training tiles:
+
+| agriculture | forest | background | water | barren | building | road |
+|---|---|---|---|---|---|---|
+| 34.4% | 25.0% | 24.7% | 7.7% | 3.5% | 2.8% | 1.9% |
 
 Adding another corpus means writing one function that returns a list of
 `Sample(image, mask)` pairs and registering it:
