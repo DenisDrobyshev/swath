@@ -265,6 +265,7 @@ def create_app(
         tile: int = Form(512),
         overlap: int = Form(128),
         tta: bool = Form(False),
+        sieve: int = Form(0),
     ) -> JSONResponse:
         if not models:
             raise HTTPException(status_code=503, detail="no checkpoints are loaded")
@@ -308,6 +309,7 @@ def create_app(
                     image,
                     entry.task,
                     return_confidence=True,
+                    sieve=max(0, int(sieve)) if HAS_RASTERIO else 0,
                     tile=max(64, int(tile)),
                     overlap=max(0, min(int(overlap), int(tile) - 32)),
                     batch_size=4,
@@ -352,6 +354,7 @@ def create_app(
                 "classes": areas,
                 "preview_max_side": preview_max_side,
                 "mean_confidence": round(float(confidence.mean()), 4),
+                "sieve": int(sieve) if HAS_RASTERIO else 0,
                 "confidence_png": _as_data_url(_preview(confidence_bytes, preview_max_side)),
                 "image_png": _as_data_url(_preview(image[:, :, :3], preview_max_side)),
                 "mask_png": _as_data_url(_preview(colored, preview_max_side, nearest=True)),

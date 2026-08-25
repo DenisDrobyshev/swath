@@ -288,3 +288,25 @@ def test_segment_returns_a_confidence_surface(client: TestClient):
     surface = np.asarray(_decode_data_url(payload["confidence_png"]))
     assert surface.ndim == 2, "a confidence map is a single band"
     assert surface.min() >= int(255 / 3) - 1
+
+
+def test_sieve_cleans_speckle_out_of_the_returned_mask(checkpoint: Path):
+    """The same upload, with and without a sieve, must differ only in speckle."""
+    client = TestClient(create_app([checkpoint], device="cpu"))
+    upload = _png_upload(256)
+
+    def segment(sieve: int) -> np.ndarray:
+        payload = client.post(
+            "/api/segment",
+            files={"file": ("tile.png", upload, "image/png")},
+            data={"tile": "64", "overlap": "16", "sieve": str(sieve)},
+        ).json()
+        assert payload["sieve"] == sieve
+        return np.asarray(_decode_data_url(payload["mask_png"]).convert("RGB"))
+
+    raw = segment(0)
+    cleaned = segment(64)
+    # An untrained model on noise produces plenty of speckle, so sieving must
+    # visibly change the mask without emptying it.
+    assert not np.array_equal(raw, cleaned)
+    assert len({tuple(c) for c in cleaned.reshape(-1, 3)}) >= 1

@@ -43,6 +43,12 @@
       </select>
     </label>
 
+    <label class="field">
+      <span class="label">Remove regions under <output id="sieve-out">off</output></span>
+      <input type="range" id="sieve" min="0" max="256" step="16" value="0">
+      <span class="note">Cleans speckle; large enough values erase small real objects.</span>
+    </label>
+
     <label class="checkbox">
       <input type="checkbox" id="tta">
       <span>Test-time augmentation <em>slower, a little sharper</em></span>

@@ -207,11 +207,22 @@ def predict_mask(
     task: Task,
     *,
     return_confidence: bool = False,
+    sieve: int = 0,
     **kwargs: Any,
 ) -> np.ndarray | tuple[np.ndarray, np.ndarray]:
-    """Predict a label map, and optionally the winning probability per pixel."""
+    """Predict a label map, and optionally the winning probability per pixel.
+
+    ``sieve`` removes connected regions smaller than that many pixels, which is
+    the usual cleanup for a per-pixel classifier. It is off by default because
+    it is a judgement about the scene, not about the model: a sieve that tidies
+    a land-cover map also erases genuinely small objects.
+    """
     probabilities = predict_logits(model, image, task, **kwargs)
     mask = probabilities.argmax(axis=0).astype(np.uint8)
+    if sieve > 1:
+        from swath.geo import sieve_mask
+
+        mask = sieve_mask(mask, sieve)
     if return_confidence:
         return mask, probabilities.max(axis=0)
     return mask

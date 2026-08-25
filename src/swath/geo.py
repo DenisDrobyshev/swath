@@ -162,6 +162,24 @@ def write_mask_geotiff(
     return path
 
 
+def sieve_mask(mask: np.ndarray, min_pixels: int, connectivity: int = 4) -> np.ndarray:
+    """Remove connected regions smaller than ``min_pixels``.
+
+    Any per-pixel classifier leaves speckle: single pixels and small clumps that
+    disagree with everything around them. Sieving reassigns each such region to
+    its largest neighbour, which is the standard cleanup in remote sensing and
+    is what makes a mask usable as polygons rather than as a picture.
+
+    It is off by default and should stay off when small objects are the point —
+    a sieve large enough to tidy a land-cover map will also erase a single
+    parked car or an isolated shed.
+    """
+    _require_rasterio("sieving a mask")
+    if min_pixels <= 1:
+        return mask
+    return features.sieve(mask.astype(np.uint8), size=int(min_pixels), connectivity=connectivity)
+
+
 def mask_to_geojson(
     mask: np.ndarray,
     reference: GeoReference | None,

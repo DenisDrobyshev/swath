@@ -54,6 +54,7 @@ def main() -> int:
     parser.add_argument("--batch-size", type=int, default=4)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--tta", action="store_true")
+    parser.add_argument("--sieve", type=int, default=0)
     parser.add_argument("--limit", type=int, default=0)
     parser.add_argument("--out", type=Path, default=None, help="write the JSON summary here")
     args = parser.parse_args()
@@ -68,6 +69,7 @@ def main() -> int:
         "batch_size": args.batch_size,
         "device": args.device,
         "tta": args.tta,
+        "sieve": args.sieve,
     }
 
     def score(domain: str) -> EvaluationReport:

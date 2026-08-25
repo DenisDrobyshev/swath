@@ -106,6 +106,7 @@ def main() -> int:
     parser.add_argument("--pool", type=int, default=160, help="tiles to consider when choosing")
     parser.add_argument("--device", default="auto")
     parser.add_argument("--tta", action="store_true")
+    parser.add_argument("--sieve", type=int, default=0)
     args = parser.parse_args()
 
     model, meta = load_checkpoint(args.checkpoint, map_location="cpu")
@@ -131,7 +132,14 @@ def main() -> int:
         image = read_image(sample.image)
         truth = mapping[read_mask(sample.mask)]
         prediction = predict_mask(
-            model, image, task, tile=512, overlap=128, device=args.device, tta=args.tta
+            model,
+            image,
+            task,
+            tile=512,
+            overlap=128,
+            device=args.device,
+            tta=args.tta,
+            sieve=args.sieve,
         )
         rows.append((image, colorize(truth, task.palette), colorize(prediction, task.palette)))
 

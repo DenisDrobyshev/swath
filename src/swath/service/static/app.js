@@ -8,6 +8,8 @@ const els = {
   alphaOut: document.getElementById("alpha-out"),
   tile: document.getElementById("tile"),
   tta: document.getElementById("tta"),
+  sieve: document.getElementById("sieve"),
+  sieveOut: document.getElementById("sieve-out"),
   run: document.getElementById("run"),
   hint: document.getElementById("hint"),
   file: document.getElementById("file"),
@@ -233,6 +235,7 @@ async function segment() {
   body.append("tile", els.tile.value);
   body.append("overlap", String(Math.round(Number(els.tile.value) / 4)));
   body.append("tta", els.tta.checked ? "true" : "false");
+  body.append("sieve", els.sieve.value);
 
   try {
     const response = await fetch("/api/segment", { method: "POST", body });
@@ -259,6 +262,11 @@ async function segment() {
 els.file.addEventListener("change", (event) => acceptFile(event.target.files[0]));
 els.run.addEventListener("click", segment);
 els.model.addEventListener("change", describeModel);
+
+els.sieve.addEventListener("input", () => {
+  const value = Number(els.sieve.value);
+  els.sieveOut.textContent = value ? `${value} px` : "off";
+});
 
 els.alpha.addEventListener("input", () => {
   els.alphaOut.textContent = els.alpha.value + "%";

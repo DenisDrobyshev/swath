@@ -37,6 +37,7 @@ class EvaluationReport:
     overlap: int
     tta: bool
     task: str
+    sieve: int = 0
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -45,6 +46,7 @@ class EvaluationReport:
             "tile": self.tile,
             "overlap": self.overlap,
             "tta": self.tta,
+            "sieve": self.sieve,
             "overall_accuracy": round(self.metrics.overall_accuracy, 5),
             "mean_iou": round(self.metrics.mean_iou, 5),
             "mean_f1": round(self.metrics.mean_f1, 5),
@@ -53,9 +55,14 @@ class EvaluationReport:
         }
 
     def summary(self) -> str:
+        extras = ""
+        if self.tta:
+            extras += ", TTA"
+        if self.sieve:
+            extras += f", sieve {self.sieve}"
         return (
             f"{self.samples} tiles, tile {self.tile} overlap {self.overlap}"
-            f"{' with TTA' if self.tta else ''}\n{self.metrics.table()}"
+            f"{extras}\n{self.metrics.table()}"
         )
 
 
@@ -71,6 +78,7 @@ def evaluate(
     batch_size: int = 4,
     device: str | torch.device = "auto",
     tta: bool = False,
+    sieve: int = 0,
     progress: bool = True,
 ) -> EvaluationReport:
     """Segment every sample at full resolution and accumulate the metrics."""
@@ -106,6 +114,7 @@ def evaluate(
             batch_size=batch_size,
             device=resolved,
             tta=tta,
+            sieve=sieve,
         )
         matrix.update(
             torch.from_numpy(truth.astype(np.int64)),
@@ -118,6 +127,7 @@ def evaluate(
         tile=tile,
         overlap=overlap,
         tta=tta,
+        sieve=sieve,
         task=task.name,
     )
 

@@ -163,6 +163,11 @@ winning probability per pixel as a greyscale raster — the quickest way to see
 where a model is guessing rather than deciding. `--input` also accepts a
 directory.
 
+`--sieve N` drops predicted regions smaller than N pixels. Every per-pixel
+classifier leaves speckle, and sieving is the standard cleanup that turns a
+mask into something worth vectorising. It is off by default on purpose: a sieve
+large enough to tidy a land-cover map also erases a single shed.
+
 ## Serve
 
 ```bash

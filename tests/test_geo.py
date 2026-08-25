@@ -88,3 +88,26 @@ def test_class_areas_report_square_metres(mask, reference, task):
 def test_class_areas_without_georeferencing_stay_in_pixels(mask, task):
     rows = class_areas(mask, task, None)
     assert all("area_m2" not in row for row in rows)
+
+
+def test_sieve_removes_speckle_but_keeps_regions(task):
+    from swath.geo import sieve_mask
+
+    mask = np.zeros((64, 64), dtype=np.uint8)
+    mask[10:30, 10:30] = 1  # a 400-pixel block that must survive
+    mask[50, 50] = 1  # a single speckled pixel that must not
+    mask[52:54, 52:54] = 2  # a four-pixel clump that must not
+
+    cleaned = sieve_mask(mask, min_pixels=16)
+    assert (cleaned[10:30, 10:30] == 1).all()
+    assert cleaned[50, 50] == 0
+    assert (cleaned[52:54, 52:54] == 0).all()
+
+
+def test_sieve_is_a_no_op_below_two_pixels():
+    from swath.geo import sieve_mask
+
+    mask = np.zeros((8, 8), dtype=np.uint8)
+    mask[0, 0] = 1
+    assert np.array_equal(sieve_mask(mask, min_pixels=1), mask)
+    assert np.array_equal(sieve_mask(mask, min_pixels=0), mask)

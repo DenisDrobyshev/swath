@@ -74,6 +74,9 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--batch-size", type=int, default=4)
     evaluate.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
     evaluate.add_argument("--tta", action="store_true")
+    evaluate.add_argument(
+        "--sieve", type=int, default=0, help="drop predicted regions smaller than N pixels"
+    )
     evaluate.add_argument("--limit", type=int, default=0, help="score only the first N tiles")
     evaluate.add_argument("--report", type=Path, default=None, help="write the metrics as JSON")
     evaluate.set_defaults(handler=_evaluate)
@@ -89,6 +92,9 @@ def build_parser() -> argparse.ArgumentParser:
     predict.add_argument("--tta", action="store_true", help="average over flips and rotations")
     predict.add_argument("--overlay", action="store_true", help="also write a blended preview")
     predict.add_argument("--geojson", action="store_true", help="also vectorise the mask")
+    predict.add_argument(
+        "--sieve", type=int, default=0, help="drop predicted regions smaller than N pixels"
+    )
     predict.add_argument(
         "--confidence",
         action="store_true",
@@ -203,6 +209,7 @@ def _evaluate(args: argparse.Namespace) -> int:
         batch_size=args.batch_size,
         device=args.device,
         tta=args.tta,
+        sieve=args.sieve,
     )
     print(report.summary())
 
@@ -234,6 +241,7 @@ def _predict(args: argparse.Namespace) -> int:
                 path,
                 task,
                 return_confidence=args.confidence,
+                sieve=args.sieve,
                 tile=args.tile,
                 overlap=args.overlap,
                 batch_size=args.batch_size,
