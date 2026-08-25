@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "swath",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "swath.cli", "serve", "--checkpoint", "runs/_ui/best.pt", "--device", "cpu", "--port", "8011"],
+      "port": 8011
+    }
+  ]
+}
