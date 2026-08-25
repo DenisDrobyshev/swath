@@ -1,11 +1,15 @@
 """The training loop.
 
 Nothing exotic: AdamW, a cosine schedule with a short warm-up, mixed precision
-on CUDA, and gradient clipping. The parts worth pointing at are the ones that
-decide whether the numbers in the README can be trusted — validation runs on
-full tiles rather than random crops, the confusion matrix is accumulated across
-the whole split, and the checkpoint kept as *best* is chosen on mean IoU rather
-than on loss, because loss and mIoU disagree exactly where the rare classes are.
+on CUDA, and gradient clipping. Two choices here are worth pointing at. The
+confusion matrix is accumulated across the whole validation split rather than
+averaged per batch, and the checkpoint kept as *best* is selected on mean IoU
+rather than on loss, because the two disagree exactly where the rare classes are.
+
+Validation during training uses a centre crop, which is a compromise for speed —
+it is enough to rank checkpoints against each other and it is not what should be
+published. :mod:`swath.evaluate` scores whole tiles through the sliding-window
+predictor, and those are the numbers that belong in a README.
 """
 
 from __future__ import annotations
@@ -59,12 +63,14 @@ class TrainConfig:
     device: str = "auto"
     val_interval: int = 1
     val_crop_size: int | None = 1024
+    resume: Path | None = None
     notes: str = ""
     extra: dict[str, Any] = field(default_factory=dict)
 
     def as_json(self) -> str:
         payload = asdict(self)
         payload["output_dir"] = str(self.output_dir)
+        payload["resume"] = str(self.resume) if self.resume else None
         return json.dumps(payload, indent=2)
 
 
@@ -134,6 +140,44 @@ class Trainer:
         self.history: list[dict[str, float]] = []
         self.best_score = -1.0
         self.start_epoch = 0
+
+        if config.resume:
+            self._restore(config.resume)
+
+    def _restore(self, path: Path) -> None:
+        """Continue a run from a checkpoint written by an earlier one.
+
+        The weights alone are not enough. AdamW carries two moment estimates per
+        parameter, and dropping them restarts the optimiser cold: the first few
+        hundred steps after a resume then undo part of what was learned before
+        it. The schedule is a function of the global step, so it lands back where
+        it left off once the epoch counter is restored.
+        """
+        from swath.checkpoints import load_checkpoint
+
+        restored, meta = load_checkpoint(path, map_location=self.device)
+        self.model.load_state_dict(restored.state_dict())
+        self.model.to(self.device)
+
+        if meta.optimizer is not None:
+            self.optimizer.load_state_dict(meta.optimizer)
+        else:
+            print(
+                f"warning: {Path(path).name} has no optimiser state; "
+                f"continuing with a fresh optimiser",
+                flush=True,
+            )
+        if meta.scaler is not None:
+            self.scaler.load_state_dict(meta.scaler)
+
+        self.history = list(meta.history)
+        self.start_epoch = meta.epoch
+        self.best_score = meta.best_score if meta.best_score >= 0 else -1.0
+        print(
+            f"resumed from {Path(path).name} at epoch {self.start_epoch}, "
+            f"best mIoU so far {self.best_score:.4f}",
+            flush=True,
+        )
 
     def _class_weights(self) -> torch.Tensor | None:
         if self.config.class_weight_mode == "none":
@@ -248,6 +292,13 @@ class Trainer:
             flush=True,
         )
 
+        if self.start_epoch >= self.config.epochs:
+            print(
+                f"nothing to do: resumed at epoch {self.start_epoch} of {self.config.epochs}",
+                flush=True,
+            )
+            return {"best_mean_iou": self.best_score, "history": self.history}
+
         for epoch in range(self.start_epoch, self.config.epochs):
             epoch_started = time.time()
             train_loss = self.train_one_epoch(train_loader, epoch, self.config.epochs)
@@ -287,6 +338,7 @@ class Trainer:
                         },
                         history=self.history,
                         notes=self.config.notes,
+                        best_score=metrics.mean_iou,
                     )
                     (self.output_dir / "metrics.txt").write_text(
                         metrics.table() + "\n", encoding="utf-8"
@@ -303,6 +355,9 @@ class Trainer:
                 metrics={"mean_iou": self.best_score},
                 history=self.history,
                 notes=self.config.notes,
+                best_score=self.best_score,
+                optimizer=self.optimizer,
+                scaler=self.scaler if self.use_amp else None,
             )
 
         return {"best_mean_iou": self.best_score, "history": self.history}

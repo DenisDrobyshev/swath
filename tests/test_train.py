@@ -10,6 +10,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+import torch
+
+from swath.checkpoints import load_checkpoint
 from swath.data.dataset import SegmentationDataset
 from swath.data.transforms import build_eval_transform, build_train_transform
 from swath.train import TrainConfig, Trainer, learning_rate_at
@@ -79,3 +83,57 @@ def test_schedule_warms_up_then_decays():
     assert learning_rate_at(10, 100, 10, 0.02) == 1.0
     assert learning_rate_at(99, 100, 10, 0.02) < 0.1
     assert learning_rate_at(99, 100, 10, 0.02) >= 0.02
+
+
+def test_resume_continues_from_the_stored_epoch(tmp_path: Path, samples, task):
+    first = _trainer(tmp_path, samples, task, epochs=2)
+    first.fit()
+
+    second = _trainer(tmp_path, samples, task, epochs=4, resume=tmp_path / "run" / "last.pt")
+    assert second.start_epoch == 2
+    assert len(second.history) == 2
+
+    history = second.fit()["history"]
+    assert len(history) == 4
+    assert [record["epoch"] for record in history] == [1, 2, 3, 4]
+
+
+def test_resume_restores_the_optimiser_state(tmp_path: Path, samples, task):
+    first = _trainer(tmp_path, samples, task, epochs=2)
+    first.fit()
+
+    second = _trainer(tmp_path, samples, task, epochs=4, resume=tmp_path / "run" / "last.pt")
+    before = first.optimizer.state_dict()["state"]
+    after = second.optimizer.state_dict()["state"]
+    assert set(before) == set(after)
+    assert before, "AdamW should have moment estimates after two epochs"
+    for key in before:
+        assert torch.allclose(before[key]["exp_avg"], after[key]["exp_avg"])
+
+
+def test_resume_carries_the_best_score(tmp_path: Path, samples, task):
+    first = _trainer(tmp_path, samples, task, epochs=2)
+    result = first.fit()
+
+    second = _trainer(tmp_path, samples, task, epochs=4, resume=tmp_path / "run" / "last.pt")
+    assert second.best_score == pytest.approx(result["best_mean_iou"], abs=1e-6)
+
+
+def test_resume_past_the_epoch_budget_does_nothing(tmp_path: Path, samples, task):
+    _trainer(tmp_path, samples, task, epochs=2).fit()
+    again = _trainer(tmp_path, samples, task, epochs=2, resume=tmp_path / "run" / "last.pt")
+    result = again.fit()
+    assert len(result["history"]) == 2
+
+
+def test_best_checkpoint_stays_weights_only(tmp_path: Path, samples, task):
+    """best.pt is the artefact people publish; it should not carry optimiser state."""
+    _trainer(tmp_path, samples, task, epochs=2).fit()
+
+    _, best = load_checkpoint(tmp_path / "run" / "best.pt")
+    _, last = load_checkpoint(tmp_path / "run" / "last.pt")
+    assert not best.resumable
+    assert last.resumable
+    assert (tmp_path / "run" / "best.pt").stat().st_size < (
+        tmp_path / "run" / "last.pt"
+    ).stat().st_size

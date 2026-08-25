@@ -35,6 +35,14 @@ class CheckpointMeta:
     swath_version: str = __version__
     format_version: int = FORMAT_VERSION
     notes: str = ""
+    best_score: float = -1.0
+    optimizer: dict[str, Any] | None = None
+    scaler: dict[str, Any] | None = None
+
+    @property
+    def resumable(self) -> bool:
+        """Whether this checkpoint can continue a run rather than only predict."""
+        return self.optimizer is not None
 
 
 def model_config(model: UNet) -> dict[str, Any]:
@@ -60,8 +68,17 @@ def save_checkpoint(
     metrics: dict[str, float] | None = None,
     history: list[dict[str, float]] | None = None,
     notes: str = "",
+    best_score: float | None = None,
+    optimizer: torch.optim.Optimizer | None = None,
+    scaler: Any | None = None,
 ) -> Path:
-    """Write weights, architecture and task definition to ``path``."""
+    """Write weights, architecture and task definition to ``path``.
+
+    Passing ``optimizer`` and ``scaler`` also stores their state, which is what
+    makes the checkpoint resumable. It roughly triples the file, so only the
+    rolling ``last.pt`` is written that way — ``best.pt`` stays a weights-only
+    artefact that is cheap to publish and to load.
+    """
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
@@ -73,8 +90,13 @@ def save_checkpoint(
         "metrics": metrics or {},
         "history": history or [],
         "notes": notes,
+        "best_score": best_score,
         "state_dict": {key: value.cpu() for key, value in model.state_dict().items()},
     }
+    if optimizer is not None:
+        payload["optimizer"] = optimizer.state_dict()
+    if scaler is not None:
+        payload["scaler"] = scaler.state_dict()
     torch.save(payload, path)
     return path
 
@@ -116,6 +138,9 @@ def load_checkpoint(
         swath_version=str(payload.get("swath_version", "unknown")),
         format_version=format_version,
         notes=str(payload.get("notes", "")),
+        best_score=float(payload.get("best_score") or -1.0),
+        optimizer=payload.get("optimizer"),
+        scaler=payload.get("scaler"),
     )
     return model, meta
 
@@ -137,4 +162,6 @@ def describe(path: str | Path) -> str:
         lines.append(f"  metrics       {scores}")
     if meta.notes:
         lines.append(f"  notes         {meta.notes}")
+    if meta.resumable:
+        lines.append("  resumable     yes, carries optimiser state")
     return "\n".join(lines)

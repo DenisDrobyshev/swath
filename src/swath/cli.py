@@ -49,6 +49,10 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--limit-train", type=int, default=0, help="cap training tiles (debug)")
     train.add_argument("--limit-val", type=int, default=0, help="cap validation tiles (debug)")
     train.add_argument("--no-amp", action="store_true", help="disable mixed precision")
+    train.add_argument(
+        "--resume", type=Path, default=None,
+        help="continue from a checkpoint, restoring the optimiser and epoch counter",
+    )
     train.add_argument("--notes", default="", help="free text stored in the checkpoint")
     train.set_defaults(handler=_train)
 
@@ -145,6 +149,7 @@ def _train(args: argparse.Namespace) -> int:
         device=args.device,
         seed=args.seed,
         amp=not args.no_amp,
+        resume=args.resume,
         notes=args.notes,
         extra={"dataset": "loveda", "data_dir": str(args.data)},
     )
