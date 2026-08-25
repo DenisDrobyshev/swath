@@ -30,6 +30,7 @@ const state = {
   result: null,
   imageBitmap: null,
   maskBitmap: null,
+  confidenceBitmap: null,
   view: "overlay",
 };
 
@@ -119,6 +120,7 @@ function acceptFile(file) {
   state.result = null;
   state.imageBitmap = null;
   state.maskBitmap = null;
+  state.confidenceBitmap = null;
   els.results.hidden = true;
   els.timing.textContent = "";
   els.canvas.hidden = true;
@@ -138,14 +140,20 @@ function paint() {
   const context = canvas.getContext("2d");
   context.clearRect(0, 0, canvas.width, canvas.height);
 
-  if (state.view !== "mask") {
-    context.drawImage(base, 0, 0);
-  }
-  if (state.view !== "image" && state.maskBitmap) {
-    context.globalAlpha = state.view === "mask" ? 1 : Number(els.alpha.value) / 100;
-    context.imageSmoothingEnabled = false;
-    context.drawImage(state.maskBitmap, 0, 0, canvas.width, canvas.height);
-    context.globalAlpha = 1;
+  if (state.view === "confidence") {
+    if (state.confidenceBitmap) {
+      context.drawImage(state.confidenceBitmap, 0, 0, canvas.width, canvas.height);
+    }
+  } else {
+    if (state.view !== "mask") {
+      context.drawImage(base, 0, 0);
+    }
+    if (state.view !== "image" && state.maskBitmap) {
+      context.globalAlpha = state.view === "mask" ? 1 : Number(els.alpha.value) / 100;
+      context.imageSmoothingEnabled = false;
+      context.drawImage(state.maskBitmap, 0, 0, canvas.width, canvas.height);
+      context.globalAlpha = 1;
+    }
   }
   canvas.hidden = false;
   els.dropzone.hidden = true;
@@ -159,7 +167,11 @@ function setView(view) {
 
 function renderResult(result) {
   state.result = result;
-  els.timing.textContent = `${result.width}×${result.height} px · ${result.seconds.toFixed(2)} s`;
+  els.timing.textContent =
+    `${result.width}×${result.height} px · ${result.seconds.toFixed(2)} s` +
+    (typeof result.mean_confidence === "number"
+      ? ` · confidence ${result.mean_confidence.toFixed(2)}`
+      : "");
 
   const rows = result.classes.filter((row) => row.pixels > 0).sort((a, b) => b.share - a.share);
 
@@ -229,9 +241,10 @@ async function segment() {
       throw new Error(detail.detail || response.statusText);
     }
     const payload = await response.json();
-    [state.imageBitmap, state.maskBitmap] = await Promise.all([
+    [state.imageBitmap, state.maskBitmap, state.confidenceBitmap] = await Promise.all([
       loadImage(payload.image_png),
       loadImage(payload.mask_png),
+      loadImage(payload.confidence_png),
     ]);
     renderResult(payload);
     setHint(`${state.file.name} · done`);

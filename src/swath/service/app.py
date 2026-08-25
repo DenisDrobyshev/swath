@@ -301,12 +301,13 @@ def create_app(
 
         image = _fit_bands(image, entry.task.in_channels)
 
-        def run() -> np.ndarray:
+        def run() -> tuple[np.ndarray, np.ndarray]:
             with torch.inference_mode():
                 return predict_mask(
                     entry.model,
                     image,
                     entry.task,
+                    return_confidence=True,
                     tile=max(64, int(tile)),
                     overlap=max(0, min(int(overlap), int(tile) - 32)),
                     batch_size=4,
@@ -319,12 +320,15 @@ def create_app(
         # keeps answering health checks and other uploads instead of freezing
         # for the length of the slowest request.
         started = time.time()
-        mask = await run_in_threadpool(run)
+        mask, confidence = await run_in_threadpool(run)
         elapsed = time.time() - started
 
         areas = class_areas(mask, entry.task, reference)
         colored = colorize(mask, entry.task.palette)
         mask_png = _encode_png(colored)
+        # Eight bits is finer than anyone reads a confidence surface at, and it
+        # makes the preview an ordinary greyscale PNG.
+        confidence_bytes = (confidence * 255).round().clip(0, 255).astype(np.uint8)
 
         payload: dict[str, Any] = {
             "mask": mask,
@@ -347,6 +351,8 @@ def create_app(
                 "geo": reference.as_dict() if reference else None,
                 "classes": areas,
                 "preview_max_side": preview_max_side,
+                "mean_confidence": round(float(confidence.mean()), 4),
+                "confidence_png": _as_data_url(_preview(confidence_bytes, preview_max_side)),
                 "image_png": _as_data_url(_preview(image[:, :, :3], preview_max_side)),
                 "mask_png": _as_data_url(_preview(colored, preview_max_side, nearest=True)),
                 "downloads": _downloads(result_id, reference is not None),

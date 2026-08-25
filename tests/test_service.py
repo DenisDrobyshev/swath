@@ -272,3 +272,19 @@ def test_segmentation_does_not_block_the_event_loop(checkpoint: Path):
         )
     finally:
         service_app.predict_mask = real_predict
+
+
+def test_segment_returns_a_confidence_surface(client: TestClient):
+    payload = client.post(
+        "/api/segment",
+        files={"file": ("tile.png", _png_upload(), "image/png")},
+        data={"tile": "64", "overlap": "16"},
+    ).json()
+
+    assert payload["confidence_png"].startswith("data:image/png;base64,")
+    # Three classes: the winning probability can never fall below a third.
+    assert 1 / 3 <= payload["mean_confidence"] <= 1.0
+
+    surface = np.asarray(_decode_data_url(payload["confidence_png"]))
+    assert surface.ndim == 2, "a confidence map is a single band"
+    assert surface.min() >= int(255 / 3) - 1
