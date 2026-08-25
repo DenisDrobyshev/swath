@@ -106,13 +106,15 @@ Adding another corpus means writing one function that returns a list of
 ```python
 from swath.data import Corpus, register
 
-register(Corpus(
-    name="inria",
-    title="Inria aerial image labeling",
-    default_task="buildings",
-    splits=("train", "test"),
-    discover=find_inria_tiles,      # (root, split) -> [Sample, ...]
-))
+register(
+    Corpus(
+        name="inria",
+        title="Inria aerial image labeling",
+        default_task="buildings",
+        splits=("train", "test"),
+        discover=find_inria_tiles,  # (root, split) -> [Sample, ...]
+    )
+)
 ```
 
 Every command then takes it: `swath train --dataset inria`,
@@ -212,13 +214,15 @@ the service stay identical across them. `swath info` lists the registered ones:
 ```python
 from swath.tasks import TASKS, Task
 
-TASKS.register(Task(
-    name="solar",
-    title="Rooftop photovoltaics",
-    description="Solar panels on roofs.",
-    classes=("background", "panel"),
-    palette=((255, 255, 255), (255, 140, 0)),
-))
+TASKS.register(
+    Task(
+        name="solar",
+        title="Rooftop photovoltaics",
+        description="Solar panels on roofs.",
+        classes=("background", "panel"),
+        palette=((255, 255, 255), (255, 140, 0)),
+    )
+)
 ```
 
 Point a dataset at it and train; nothing else needs to know.

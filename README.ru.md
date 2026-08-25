@@ -105,13 +105,15 @@ swath prepare loveda --raw data/raw --out data/loveda
 ```python
 from swath.data import Corpus, register
 
-register(Corpus(
-    name="inria",
-    title="Inria aerial image labeling",
-    default_task="buildings",
-    splits=("train", "test"),
-    discover=find_inria_tiles,      # (root, split) -> [Sample, ...]
-))
+register(
+    Corpus(
+        name="inria",
+        title="Inria aerial image labeling",
+        default_task="buildings",
+        splits=("train", "test"),
+        discover=find_inria_tiles,  # (root, split) -> [Sample, ...]
+    )
+)
 ```
 
 Дальше корпус принимают все команды: `swath train --dataset inria`,
@@ -212,13 +214,15 @@ docker run -p 8000:8000 -v "$PWD/runs:/models" swath
 ```python
 from swath.tasks import TASKS, Task
 
-TASKS.register(Task(
-    name="solar",
-    title="Rooftop photovoltaics",
-    description="Солнечные панели на крышах.",
-    classes=("background", "panel"),
-    palette=((255, 255, 255), (255, 140, 0)),
-))
+TASKS.register(
+    Task(
+        name="solar",
+        title="Rooftop photovoltaics",
+        description="Солнечные панели на крышах.",
+        classes=("background", "panel"),
+        palette=((255, 255, 255), (255, 140, 0)),
+    )
+)
 ```
 
 Направьте на неё датасет и обучайте; знать об этом остальному коду не нужно.
