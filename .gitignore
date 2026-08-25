@@ -27,3 +27,6 @@ Thumbs.db
 
 # Local editor and preview configuration
 .claude/
+
+# Release staging
+/release/
