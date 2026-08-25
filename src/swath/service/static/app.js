@@ -13,7 +13,7 @@ const els = {
   file: document.getElementById("file"),
   dropzone: document.getElementById("dropzone"),
   stage: document.getElementById("stage"),
-  image: document.getElementById("canvas-image"),
+  canvas: document.getElementById("canvas"),
   spinner: document.getElementById("spinner"),
   results: document.getElementById("results"),
   legend: document.getElementById("legend"),
@@ -27,8 +27,9 @@ const els = {
 const state = {
   models: [],
   file: null,
-  objectUrl: null,
   result: null,
+  imageBitmap: null,
+  maskBitmap: null,
   view: "overlay",
 };
 
@@ -47,6 +48,15 @@ function formatArea(squareMetres) {
   if (squareMetres >= 1e6) return (squareMetres / 1e6).toFixed(2) + " km²";
   if (squareMetres >= 1e4) return (squareMetres / 1e4).toFixed(2) + " ha";
   return Math.round(squareMetres) + " m²";
+}
+
+function loadImage(source) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("could not decode the returned image"));
+    image.src = source;
+  });
 }
 
 async function boot() {
@@ -93,7 +103,10 @@ function describeModel() {
     els.modelNote.textContent = "";
     return;
   }
-  const parts = [`${model.classes.length} classes`, `${(model.parameters / 1e6).toFixed(1)}M params`];
+  const parts = [
+    `${model.classes.length} classes`,
+    `${(model.parameters / 1e6).toFixed(1)}M params`,
+  ];
   if (model.metrics && typeof model.metrics.mean_iou === "number") {
     parts.push(`mIoU ${model.metrics.mean_iou.toFixed(3)}`);
   }
@@ -104,52 +117,51 @@ function acceptFile(file) {
   if (!file) return;
   state.file = file;
   state.result = null;
+  state.imageBitmap = null;
+  state.maskBitmap = null;
   els.results.hidden = true;
   els.timing.textContent = "";
-  if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
-
-  const isTiff = /\.tiff?$/i.test(file.name);
-  state.objectUrl = isTiff ? null : URL.createObjectURL(file);
-  if (state.objectUrl) {
-    els.image.src = state.objectUrl;
-    els.image.hidden = false;
-    els.dropzone.hidden = true;
-  } else {
-    // Browsers cannot display a GeoTIFF, so the preview waits for the result.
-    els.image.hidden = true;
-    els.dropzone.hidden = false;
-  }
+  els.canvas.hidden = true;
+  els.dropzone.hidden = false;
   els.run.disabled = false;
   setHint(`${file.name} · ${formatBytes(file.size)}`);
-  setView("image");
+}
+
+/** Draw the current view. The overlay is composed here, so opacity is free. */
+function paint() {
+  const canvas = els.canvas;
+  const base = state.imageBitmap;
+  if (!base) return;
+
+  canvas.width = base.naturalWidth;
+  canvas.height = base.naturalHeight;
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (state.view !== "mask") {
+    context.drawImage(base, 0, 0);
+  }
+  if (state.view !== "image" && state.maskBitmap) {
+    context.globalAlpha = state.view === "mask" ? 1 : Number(els.alpha.value) / 100;
+    context.imageSmoothingEnabled = false;
+    context.drawImage(state.maskBitmap, 0, 0, canvas.width, canvas.height);
+    context.globalAlpha = 1;
+  }
+  canvas.hidden = false;
+  els.dropzone.hidden = true;
 }
 
 function setView(view) {
   state.view = view;
   for (const tab of els.tabs) tab.classList.toggle("active", tab.dataset.view === view);
-  if (!state.result) {
-    if (state.objectUrl) {
-      els.image.src = state.objectUrl;
-      els.image.hidden = false;
-      els.dropzone.hidden = true;
-    }
-    return;
-  }
-  if (view === "mask") els.image.src = state.result.mask_png;
-  else if (view === "overlay") els.image.src = state.result.overlay_png;
-  else if (state.objectUrl) els.image.src = state.objectUrl;
-  else els.image.src = state.result.overlay_png;
-  els.image.hidden = false;
-  els.dropzone.hidden = true;
+  paint();
 }
 
 function renderResult(result) {
   state.result = result;
   els.timing.textContent = `${result.width}×${result.height} px · ${result.seconds.toFixed(2)} s`;
 
-  const rows = result.classes
-    .filter((row) => row.pixels > 0)
-    .sort((a, b) => b.share - a.share);
+  const rows = result.classes.filter((row) => row.pixels > 0).sort((a, b) => b.share - a.share);
 
   els.legend.innerHTML = "";
   for (const row of rows) {
@@ -208,7 +220,6 @@ async function segment() {
   body.append("model_id", els.model.value || "");
   body.append("tile", els.tile.value);
   body.append("overlap", String(Math.round(Number(els.tile.value) / 4)));
-  body.append("alpha", String(Number(els.alpha.value) / 100));
   body.append("tta", els.tta.checked ? "true" : "false");
 
   try {
@@ -217,7 +228,12 @@ async function segment() {
       const detail = await response.json().catch(() => ({ detail: response.statusText }));
       throw new Error(detail.detail || response.statusText);
     }
-    renderResult(await response.json());
+    const payload = await response.json();
+    [state.imageBitmap, state.maskBitmap] = await Promise.all([
+      loadImage(payload.image_png),
+      loadImage(payload.mask_png),
+    ]);
+    renderResult(payload);
     setHint(`${state.file.name} · done`);
   } catch (error) {
     setHint(error.message, true);
@@ -233,9 +249,7 @@ els.model.addEventListener("change", describeModel);
 
 els.alpha.addEventListener("input", () => {
   els.alphaOut.textContent = els.alpha.value + "%";
-});
-els.alpha.addEventListener("change", () => {
-  if (state.result) segment();
+  if (state.view === "overlay") paint();
 });
 
 for (const tab of els.tabs) {

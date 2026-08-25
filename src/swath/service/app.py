@@ -10,6 +10,7 @@ instead of pushing megabytes of base64 into the JSON response.
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import time
 import uuid
@@ -28,7 +29,7 @@ from PIL import Image
 from swath import __version__
 from swath.checkpoints import load_checkpoint
 from swath.geo import HAS_RASTERIO, GeoReference, class_areas, mask_to_geojson
-from swath.imagery import colorize, overlay
+from swath.imagery import colorize
 from swath.models import UNet
 from swath.predict import predict_mask, select_device
 from swath.tasks import Task
@@ -37,6 +38,13 @@ STATIC_DIR = Path(__file__).parent / "static"
 MAX_UPLOAD_BYTES = 64 * 1024 * 1024
 MAX_PIXELS = 64_000_000
 RESULT_CACHE_SIZE = 24
+PREVIEW_MAX_SIDE = 2048
+"""Longest side of the PNGs sent back for display.
+
+A 64 megapixel mask base64-encoded into a JSON body is tens of megabytes that no
+screen can show. Previews are downscaled; the downloads behind the result id
+stay at full resolution.
+"""
 
 
 @dataclass
@@ -95,6 +103,47 @@ def _encode_png(array: np.ndarray) -> bytes:
     buffer = io.BytesIO()
     Image.fromarray(array).save(buffer, format="PNG", optimize=True)
     return buffer.getvalue()
+
+
+def _preview(array: np.ndarray, max_side: int, nearest: bool = False) -> bytes:
+    """Encode an array as a PNG no larger than ``max_side`` on its longest edge.
+
+    Label maps are resampled with nearest neighbour: interpolating class colours
+    would invent boundary classes that the model never predicted.
+    """
+    if array.ndim == 3 and array.shape[2] == 1:
+        array = array[:, :, 0]
+    image = Image.fromarray(array)
+    longest = max(image.size)
+    if longest > max_side:
+        scale = max_side / longest
+        size = (max(1, round(image.width * scale)), max(1, round(image.height * scale)))
+        image = image.resize(size, Image.NEAREST if nearest else Image.LANCZOS)
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG", optimize=True)
+    return buffer.getvalue()
+
+
+def _as_data_url(payload: bytes) -> str:
+    return "data:image/png;base64," + base64.b64encode(payload).decode()
+
+
+def asset_version(directory: Path = STATIC_DIR) -> str:
+    """A short tag that changes whenever the front-end files change.
+
+    Without it a browser keeps a cached ``app.js`` and runs it against a newer
+    API — the page looks fine and silently does the wrong thing. Stamping the
+    tag onto the asset URLs makes a changed file a different URL, so the cache
+    cannot answer for it.
+    """
+    digest = hashlib.sha256()
+    for path in sorted(directory.glob("*")):
+        if path.is_file():
+            stat = path.stat()
+            digest.update(path.name.encode())
+            digest.update(str(stat.st_mtime_ns).encode())
+            digest.update(str(stat.st_size).encode())
+    return digest.hexdigest()[:10]
 
 
 def _read_upload(data: bytes, filename: str) -> tuple[np.ndarray, GeoReference | None]:
@@ -163,6 +212,7 @@ def create_app(
     checkpoints: list[Path] | None = None,
     device: str = "auto",
     max_pixels: int = MAX_PIXELS,
+    preview_max_side: int = PREVIEW_MAX_SIDE,
 ) -> FastAPI:
     """Build the application around the given checkpoints."""
     resolved = discover_checkpoints(checkpoints)
@@ -213,7 +263,6 @@ def create_app(
         model_id: str = Form(""),
         tile: int = Form(512),
         overlap: int = Form(128),
-        alpha: float = Form(0.5),
         tta: bool = Form(False),
     ) -> JSONResponse:
         if not models:
@@ -266,8 +315,8 @@ def create_app(
         elapsed = time.time() - started
 
         areas = class_areas(mask, entry.task, reference)
-        mask_png = _encode_png(colorize(mask, entry.task.palette))
-        overlay_png = _encode_png(overlay(image, mask, entry.task.palette, alpha=alpha))
+        colored = colorize(mask, entry.task.palette)
+        mask_png = _encode_png(colored)
 
         payload: dict[str, Any] = {
             "mask": mask,
@@ -289,8 +338,9 @@ def create_app(
                 "georeferenced": reference is not None,
                 "geo": reference.as_dict() if reference else None,
                 "classes": areas,
-                "mask_png": "data:image/png;base64," + base64.b64encode(mask_png).decode(),
-                "overlay_png": "data:image/png;base64," + base64.b64encode(overlay_png).decode(),
+                "preview_max_side": preview_max_side,
+                "image_png": _as_data_url(_preview(image[:, :, :3], preview_max_side)),
+                "mask_png": _as_data_url(_preview(colored, preview_max_side, nearest=True)),
                 "downloads": _downloads(result_id, reference is not None),
             }
         )
@@ -358,6 +408,17 @@ def create_app(
         return item
 
     if STATIC_DIR.is_dir():
-        app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
+        version = asset_version()
+
+        @app.get("/", include_in_schema=False)
+        def index() -> Response:
+            html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+            return Response(
+                content=html.replace("__SWATH_ASSETS__", version),
+                media_type="text/html",
+                headers={"Cache-Control": "no-cache"},
+            )
+
+        app.mount("/", StaticFiles(directory=STATIC_DIR), name="static")
 
     return app

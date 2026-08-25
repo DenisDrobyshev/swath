@@ -163,7 +163,9 @@ button.primary:disabled { opacity: .45; cursor: not-allowed; }
   overflow: auto;
 }
 
-#canvas-image { max-width: 100%; display: block; image-rendering: auto; }
+#canvas { max-width: 100%; height: auto; display: block; }
+
+.note { display: block; font-size: 11.5px; color: var(--muted); margin-top: 5px; }
 
 .dropzone {
   text-align: center;

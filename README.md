@@ -155,13 +155,19 @@ overlay comes back with a legend showing what fraction of the scene each class
 covers — in square metres when the upload was georeferenced. `--checkpoint`
 takes a directory, or can be repeated, and the page offers a model picker.
 
+The overlay is composed in the browser from the mask and the input, so the
+opacity slider is instant instead of a round trip through the model. What the
+page receives is downscaled to 2048 px on the long side — a 64 megapixel mask
+base64-encoded into a JSON body is tens of megabytes no screen can show — while
+the download links behind each result stay at full resolution.
+
 The API underneath:
 
 | Method | Path | |
 |---|---|---|
 | `GET` | `/api/health` | version, device, model count, whether rasterio is available |
 | `GET` | `/api/models` | loaded checkpoints with their classes, palettes and metrics |
-| `POST` | `/api/segment` | multipart upload; returns the mask, overlay, coverage and download links |
+| `POST` | `/api/segment` | multipart upload; returns the mask, a rendering of the input, coverage and download links |
 | `GET` | `/api/result/{id}/mask.png` | the mask on its own |
 | `GET` | `/api/result/{id}/mask.tif` | georeferenced mask, when the input carried a CRS |
 | `GET` | `/api/result/{id}/mask.geojson` | vectorised polygons in EPSG:4326 |

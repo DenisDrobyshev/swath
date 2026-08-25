@@ -53,7 +53,7 @@ def test_segment_returns_a_mask_and_coverage(client: TestClient):
     payload = response.json()
     assert payload["width"] == 96 and payload["height"] == 96
     assert payload["mask_png"].startswith("data:image/png;base64,")
-    assert payload["overlay_png"].startswith("data:image/png;base64,")
+    assert payload["image_png"].startswith("data:image/png;base64,")
     assert abs(sum(row["share"] for row in payload["classes"]) - 1.0) < 1e-4
     assert payload["georeferenced"] is False
 
@@ -126,3 +126,92 @@ def test_discover_expands_a_directory(checkpoint: Path):
 def test_discover_rejects_a_missing_path(tmp_path: Path):
     with pytest.raises(FileNotFoundError):
         discover_checkpoints([tmp_path / "nope.pt"])
+
+
+def _decode_data_url(url: str) -> Image.Image:
+    import base64
+
+    return Image.open(io.BytesIO(base64.b64decode(url.split(",", 1)[1])))
+
+
+def test_previews_are_downscaled_but_downloads_are_not(checkpoint: Path):
+    """A large mask must not travel to the browser at full resolution."""
+    client = TestClient(create_app([checkpoint], device="cpu"))
+    payload = client.post(
+        "/api/segment",
+        files={"file": ("tile.png", _png_upload(320), "image/png")},
+        data={"tile": "64", "overlap": "16"},
+    ).json()
+
+    # PREVIEW_MAX_SIDE is 2048 in production; patching it would not exercise the
+    # real path, so the check is that previews never exceed it and that the
+    # download keeps the original size.
+    preview = _decode_data_url(payload["mask_png"])
+    assert max(preview.size) <= payload["preview_max_side"]
+
+    download = client.get(payload["downloads"]["mask_png"])
+    with Image.open(io.BytesIO(download.content)) as full:
+        assert full.size == (320, 320)
+
+
+def test_preview_downscaling_kicks_in(checkpoint: Path):
+    client = TestClient(create_app([checkpoint], device="cpu", preview_max_side=64))
+    payload = client.post(
+        "/api/segment",
+        files={"file": ("tile.png", _png_upload(160), "image/png")},
+        data={"tile": "64", "overlap": "16"},
+    ).json()
+
+    assert max(_decode_data_url(payload["mask_png"]).size) == 64
+    assert max(_decode_data_url(payload["image_png"]).size) == 64
+    assert payload["width"] == 160, "the reported size is the raster, not the preview"
+
+
+def test_mask_preview_keeps_palette_colours_exact(checkpoint: Path):
+    """Nearest-neighbour resampling: a downscaled mask must invent no new colours."""
+    client = TestClient(create_app([checkpoint], device="cpu"))
+    payload = client.post(
+        "/api/segment",
+        files={"file": ("tile.png", _png_upload(256), "image/png")},
+        data={"tile": "64", "overlap": "16"},
+    ).json()
+
+    preview = np.asarray(_decode_data_url(payload["mask_png"]).convert("RGB"))
+    colours = {tuple(colour) for colour in preview.reshape(-1, 3)}
+    models = client.get("/api/models").json()["models"][0]
+    allowed = {
+        tuple(int(entry["color"][i : i + 2], 16) for i in (1, 3, 5))
+        for entry in models["classes"]
+    }
+    assert colours <= allowed
+
+
+def test_index_stamps_a_version_onto_the_assets(client: TestClient):
+    from swath.service.app import asset_version
+
+    response = client.get("/")
+    assert response.status_code == 200
+    assert response.headers["cache-control"] == "no-cache"
+    assert "__SWATH_ASSETS__" not in response.text
+    assert f"/app.js?v={asset_version()}" in response.text
+    assert f"/style.css?v={asset_version()}" in response.text
+
+
+def test_asset_version_follows_the_files(tmp_path: Path):
+    import os
+
+    from swath.service.app import asset_version
+
+    (tmp_path / "app.js").write_text("one", encoding="utf-8")
+    first = asset_version(tmp_path)
+
+    (tmp_path / "app.js").write_text("two but longer", encoding="utf-8")
+    os.utime(tmp_path / "app.js", (1, 1))
+    assert asset_version(tmp_path) != first
+
+
+def test_static_assets_are_still_served(client: TestClient):
+    for path in ("/app.js", "/style.css"):
+        response = client.get(path)
+        assert response.status_code == 200, path
+        assert response.content
