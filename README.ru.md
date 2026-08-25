@@ -2,6 +2,10 @@
 
 # swath
 
+[![ci](https://github.com/DenisDrobyshev/swath/actions/workflows/ci.yml/badge.svg)](https://github.com/DenisDrobyshev/swath/actions/workflows/ci.yml)
+[![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
+[![licence](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
+
 Семантическая сегментация аэро- и космоснимков — от сырого датасета до
 веб-страницы, на которую можно бросить GeoTIFF и получить маску, всё ещё
 знающую своё место на Земле.
