@@ -25,6 +25,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
+from starlette.concurrency import run_in_threadpool
 
 from swath import __version__
 from swath.checkpoints import load_checkpoint
@@ -300,18 +301,25 @@ def create_app(
 
         image = _fit_bands(image, entry.task.in_channels)
 
+        def run() -> np.ndarray:
+            with torch.inference_mode():
+                return predict_mask(
+                    entry.model,
+                    image,
+                    entry.task,
+                    tile=max(64, int(tile)),
+                    overlap=max(0, min(int(overlap), int(tile) - 32)),
+                    batch_size=4,
+                    device=torch_device,
+                    tta=bool(tta),
+                )
+
+        # Segmenting a large raster takes seconds to minutes. Run on a worker
+        # thread — torch releases the GIL during compute — so the event loop
+        # keeps answering health checks and other uploads instead of freezing
+        # for the length of the slowest request.
         started = time.time()
-        with torch.inference_mode():
-            mask = predict_mask(
-                entry.model,
-                image,
-                entry.task,
-                tile=max(64, int(tile)),
-                overlap=max(0, min(int(overlap), int(tile) - 32)),
-                batch_size=4,
-                device=torch_device,
-                tta=bool(tta),
-            )
+        mask = await run_in_threadpool(run)
         elapsed = time.time() - started
 
         areas = class_areas(mask, entry.task, reference)

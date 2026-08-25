@@ -215,3 +215,61 @@ def test_static_assets_are_still_served(client: TestClient):
         response = client.get(path)
         assert response.status_code == 200, path
         assert response.content
+
+
+def test_segmentation_does_not_block_the_event_loop(checkpoint: Path):
+    """A slow segmentation must not stop the service answering anything else.
+
+    Timing has to be measured against a clock started *before* the segmentation,
+    not after it is seen to begin: a blocking handler freezes the event loop, so
+    any measurement taken once the loop is running again reports a fast health
+    check no matter how long the freeze lasted.
+    """
+    import asyncio
+    import threading
+    import time as time_module
+
+    import httpx
+
+    from swath.service import app as service_app
+
+    hold = 1.0
+    started = threading.Event()
+    real_predict = service_app.predict_mask
+
+    def slow_predict(*args, **kwargs):
+        started.set()
+        time_module.sleep(hold)
+        return real_predict(*args, **kwargs)
+
+    service_app.predict_mask = slow_predict
+    try:
+        application = service_app.create_app([checkpoint], device="cpu")
+
+        async def exercise() -> tuple[float, httpx.Response, httpx.Response]:
+            transport = httpx.ASGITransport(app=application)
+            async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+                begin = time_module.perf_counter()
+                task = asyncio.create_task(
+                    client.post(
+                        "/api/segment",
+                        files={"file": ("tile.png", _png_upload(), "image/png")},
+                        data={"tile": "64", "overlap": "16"},
+                    )
+                )
+                await asyncio.sleep(0.1)  # let the upload reach the handler
+                health = await client.get("/api/health")
+                answered_at = time_module.perf_counter() - begin
+                return answered_at, health, await task
+
+        answered_at, health, response = asyncio.run(exercise())
+
+        assert started.is_set(), "the segmentation never reached the model"
+        assert health.status_code == 200
+        assert response.status_code == 200
+        assert answered_at < hold / 2, (
+            f"the health check was answered {answered_at:.2f}s in, behind a "
+            f"{hold:.1f}s segmentation"
+        )
+    finally:
+        service_app.predict_mask = real_predict
