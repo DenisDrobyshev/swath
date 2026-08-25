@@ -1,0 +1,10 @@
+# The English README is picked up automatically; the Russian one is a sibling
+# file the first one links to, so it has to be named here or the link breaks in
+# a source distribution.
+include README.ru.md
+include Dockerfile
+recursive-include src/swath/service/static *
+recursive-include tests *.py
+recursive-include scripts *.py
+recursive-exclude * __pycache__
+recursive-exclude * *.py[cod]
