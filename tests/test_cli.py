@@ -75,3 +75,36 @@ def test_predict_end_to_end(tmp_path: Path, checkpoint: Path, tiles: Path, capsy
     assert (output / "tile_00_mask.png").is_file()
     assert (output / "tile_00_overlay.png").is_file()
     assert "tile_00.png" in capsys.readouterr().out
+
+
+def test_serve_reads_checkpoints_from_the_environment(monkeypatch, checkpoint: Path, capsys):
+    seen: dict[str, object] = {}
+
+    def fake_create_app(checkpoints, device="auto"):
+        seen["checkpoints"] = list(checkpoints)
+        seen["device"] = device
+        raise SystemExit(0)
+
+    monkeypatch.setenv("SWATH_CHECKPOINTS", str(checkpoint))
+    monkeypatch.setattr("swath.service.app.create_app", fake_create_app)
+    with pytest.raises(SystemExit):
+        main(["serve", "--device", "cpu"])
+    assert seen["checkpoints"] == [checkpoint]
+
+
+def test_serve_without_any_checkpoint_explains_itself(monkeypatch, capsys):
+    monkeypatch.delenv("SWATH_CHECKPOINTS", raising=False)
+    assert main(["serve"]) == 1
+    assert "SWATH_CHECKPOINTS" in capsys.readouterr().err
+
+
+def test_environment_accepts_several_paths(monkeypatch, tmp_path: Path):
+    import os
+
+    from swath.cli import _checkpoints_from_environment
+
+    monkeypatch.setenv("SWATH_CHECKPOINTS", os.pathsep.join(["a.pt", "b.pt"]))
+    assert _checkpoints_from_environment() == [Path("a.pt"), Path("b.pt")]
+
+    monkeypatch.setenv("SWATH_CHECKPOINTS", "  ")
+    assert _checkpoints_from_environment() == []

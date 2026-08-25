@@ -24,3 +24,6 @@ htmlcov/
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Local editor and preview configuration
+.claude/

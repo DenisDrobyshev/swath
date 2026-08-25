@@ -23,6 +23,7 @@ RUN pip install --upgrade pip \
 
 # Mount checkpoints at /models:
 #   docker run -p 8000:8000 -v "$PWD/runs:/models" swath
+# The entrypoint reads this, so `docker run swath` needs no arguments.
 ENV SWATH_CHECKPOINTS=/models
 EXPOSE 8000
 
@@ -30,4 +31,4 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=20s \
     CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/api/health')"
 
 ENTRYPOINT ["swath", "serve", "--host", "0.0.0.0", "--port", "8000", "--device", "cpu"]
-CMD ["--checkpoint", "/models"]
+CMD []

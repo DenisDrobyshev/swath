@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -87,7 +88,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     serve = subparsers.add_parser("serve", help="run the web service")
     serve.add_argument("--checkpoint", type=Path, action="append", default=None,
-                       help="checkpoint to expose; repeat to offer several models")
+                       help="checkpoint or directory to expose; repeat for several models. "
+                            "Defaults to the SWATH_CHECKPOINTS environment variable.")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
     serve.add_argument("--device", default="auto", choices=["auto", "cuda", "cpu"])
@@ -241,7 +243,13 @@ def _serve(args: argparse.Namespace) -> int:
 
     from swath.service.app import create_app
 
-    checkpoints = args.checkpoint or []
+    checkpoints = args.checkpoint or _checkpoints_from_environment()
+    if not checkpoints:
+        print(
+            "no checkpoints given; pass --checkpoint or set SWATH_CHECKPOINTS",
+            file=sys.stderr,
+        )
+        return 1
     app = create_app(checkpoints, device=args.device)
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
     return 0
@@ -258,6 +266,19 @@ def _info(args: argparse.Namespace) -> int:
         print(f"{task.name:12s} {task.num_classes} classes  {task.title}")
         print(f"{'':12s} {task.description}")
     return 0
+
+
+def _checkpoints_from_environment() -> list[Path]:
+    """Read SWATH_CHECKPOINTS, the deployment path for containers.
+
+    A container is configured with environment variables, not command lines, so
+    the image can declare where checkpoints will be mounted and the entrypoint
+    stays the same whether one model is served or five.
+    """
+    raw = os.environ.get("SWATH_CHECKPOINTS", "").strip()
+    if not raw:
+        return []
+    return [Path(part) for part in raw.split(os.pathsep) if part.strip()]
 
 
 def _collect_inputs(path: Path) -> list[Path]:

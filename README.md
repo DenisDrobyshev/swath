@@ -173,7 +173,9 @@ docker build -t swath .
 docker run -p 8000:8000 -v "$PWD/runs:/models" swath
 ```
 
-CPU image; it serves whatever checkpoints are mounted at `/models`.
+CPU image; it serves whatever checkpoints are mounted at `/models`. The path
+comes from `SWATH_CHECKPOINTS`, which `swath serve` falls back to when
+`--checkpoint` is not given, so the container needs no arguments.
 
 ## Tasks
 
