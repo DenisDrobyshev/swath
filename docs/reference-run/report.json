@@ -1,0 +1,83 @@
+{
+  "checkpoint": "runs\\landcover\\best.pt",
+  "dataset": "loveda",
+  "split": "Val",
+  "tiles": 1669,
+  "tile": 512,
+  "overlap": 128,
+  "tta": false,
+  "sieve": 0,
+  "parameters": 16830919,
+  "trained_epochs": 26,
+  "overall": {
+    "overall_accuracy": 0.61508,
+    "mean_iou": 0.43771,
+    "mean_f1": 0.6065,
+    "per_class_iou": {
+      "background": 0.45546,
+      "building": 0.50734,
+      "road": 0.49047,
+      "water": 0.47636,
+      "barren": 0.33387,
+      "forest": 0.37432,
+      "agriculture": 0.42618
+    },
+    "per_class_f1": {
+      "background": 0.62586,
+      "building": 0.67316,
+      "road": 0.65814,
+      "water": 0.64532,
+      "barren": 0.50061,
+      "forest": 0.54473,
+      "agriculture": 0.59766
+    }
+  },
+  "domains": {
+    "Rural": {
+      "overall_accuracy": 0.61777,
+      "mean_iou": 0.3786,
+      "mean_f1": 0.54296,
+      "per_class_iou": {
+        "background": 0.50022,
+        "building": 0.41498,
+        "road": 0.35967,
+        "water": 0.40565,
+        "barren": 0.25395,
+        "forest": 0.25155,
+        "agriculture": 0.4642
+      },
+      "per_class_f1": {
+        "background": 0.66686,
+        "building": 0.58655,
+        "road": 0.52906,
+        "water": 0.57717,
+        "barren": 0.40505,
+        "forest": 0.40198,
+        "agriculture": 0.63407
+      }
+    },
+    "Urban": {
+      "overall_accuracy": 0.61105,
+      "mean_iou": 0.47086,
+      "mean_f1": 0.63475,
+      "per_class_iou": {
+        "background": 0.34462,
+        "building": 0.56373,
+        "road": 0.54732,
+        "water": 0.59462,
+        "barren": 0.41105,
+        "forest": 0.47079,
+        "agriculture": 0.36388
+      },
+      "per_class_f1": {
+        "background": 0.51259,
+        "building": 0.721,
+        "road": 0.70744,
+        "water": 0.74578,
+        "barren": 0.58262,
+        "forest": 0.64018,
+        "agriculture": 0.5336
+      }
+    }
+  }
+}

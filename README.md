@@ -64,6 +64,48 @@ They are also not what a user submits, and they never exercise the sliding
 window. `swath evaluate` scores whole tiles through the same predictor the
 service uses.
 
+## Results
+
+Trained from scratch on the LoveDA training split and scored on all
+1669 validation tiles at full 1024 px resolution, through the same
+sliding-window predictor the service uses.
+
+| class | IoU | F1 | IoU rural | IoU urban |
+|---|---|---|---|---|
+| background | 0.455 | 0.626 | 0.500 | 0.345 |
+| building | 0.507 | 0.673 | 0.415 | 0.564 |
+| road | 0.490 | 0.658 | 0.360 | 0.547 |
+| water | 0.476 | 0.645 | 0.406 | 0.595 |
+| barren | 0.334 | 0.501 | 0.254 | 0.411 |
+| forest | 0.374 | 0.545 | 0.252 | 0.471 |
+| agriculture | 0.426 | 0.598 | 0.464 | 0.364 |
+| **mean** | **0.438** | **0.607** | **0.379** | **0.471** |
+
+![example predictions](docs/examples.png)
+
+![training curves](docs/training.png)
+
+Overall accuracy 0.615, mean IoU
+**0.438** over 16.8M parameters.
+30 epochs took 2.1 h on one RTX 4060 Laptop (8 GB).
+
+Three things a reader should weigh:
+
+- **No pretrained encoder.** Published LoveDA baselines run ImageNet-pretrained
+  backbones and land around 0.47–0.50 mIoU. Starting from random weights costs
+  accuracy and buys a model that takes any number of input bands.
+- **The validation split both selected the checkpoint and scored it.** LoveDA's
+  test split has no public labels, so this is the protocol the benchmark allows
+  and the one the published baselines use; the number is mildly optimistic all
+  the same.
+- **The two domains disagree.** Rural scores 0.379 and
+  urban 0.471 — the gap is the thing to look at, not
+  the average.
+
+The exact configuration, the epoch-by-epoch history and this report are in
+[`docs/reference-run/`](docs/reference-run), so the numbers can be checked
+rather than taken on trust.
+
 ## Install
 
 ```bash

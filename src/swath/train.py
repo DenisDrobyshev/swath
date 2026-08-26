@@ -172,7 +172,15 @@ class Trainer:
 
         self.history = list(meta.history)
         self.start_epoch = meta.epoch
-        self.best_score = meta.best_score if meta.best_score >= 0 else -1.0
+        self.best_score = meta.best_score
+        if self.best_score < 0:
+            # Checkpoints written before the score was recorded still carry the
+            # history, and the best epoch is in it. Without this the first
+            # validation after a resume beats a record of -1 and overwrites a
+            # better best.pt with a worse one.
+            scores = [float(record["val_miou"]) for record in self.history if "val_miou" in record]
+            self.best_score = max(scores) if scores else -1.0
+
         print(
             f"resumed from {Path(path).name} at epoch {self.start_epoch}, "
             f"best mIoU so far {self.best_score:.4f}",

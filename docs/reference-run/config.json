@@ -1,0 +1,31 @@
+{
+  "output_dir": "runs\\landcover",
+  "epochs": 30,
+  "batch_size": 6,
+  "crop_size": 512,
+  "learning_rate": 0.0006,
+  "weight_decay": 0.01,
+  "warmup_epochs": 1,
+  "min_learning_rate_factor": 0.02,
+  "grad_clip": 1.0,
+  "base_channels": 32,
+  "depth": 4,
+  "blocks_per_stage": 2,
+  "norm": "batch",
+  "dropout": 0.1,
+  "dice_weight": 0.5,
+  "label_smoothing": 0.02,
+  "class_weight_mode": "sqrt_inverse",
+  "num_workers": 6,
+  "seed": 0,
+  "amp": true,
+  "device": "auto",
+  "val_interval": 2,
+  "val_crop_size": 512,
+  "resume": "runs\\landcover\\last.pt",
+  "notes": "LoveDA Train split (2522 tiles), 30 epochs, crop 512; resumed at epoch 26 after an interruption",
+  "extra": {
+    "dataset": "loveda",
+    "data_dir": "data\\loveda"
+  }
+}
