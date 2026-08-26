@@ -6,12 +6,12 @@
 [![python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue)](https://www.python.org/)
 [![licence](https://img.shields.io/badge/licence-MIT-green)](LICENSE)
 
-Semantic segmentation of aerial and satellite imagery: from a raw dataset to a page
-you can drop a GeoTIFF onto and get back a mask that knows where it is on the Earth.
+Semantic segmentation of aerial and satellite imagery. From a raw dataset to a page
+you can drop a GeoTIFF onto, and a mask that knows where it is on the Earth.
 
 *Swath* is the strip of ground under a sensor on one pass. The package handles what
-happens to that strip afterwards: tiling it, training on it, running the model over
-rasters that do not fit in video memory, and returning something a GIS can open.
+happens to it afterwards: tiling, training, inference over rasters that do not fit
+in video memory, and output a GIS can open.
 
 ```
 swath prepare loveda --raw data/raw --out data/loveda
